@@ -1,16 +1,24 @@
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex
+    },
+    time::{Duration, Instant}
+};
 
 use rand::seq::SliceRandom;
 
-use crate::kvraft::errors::{Error, Result};
-use crate::kvraft::{client, server};
-use crate::proto::kvraftpb::*;
-use crate::proto::raftpb::*;
-use crate::raft;
-use crate::raft::persister::*;
+use crate::{
+    kvraft::{
+        client,
+        errors::{Error, Result},
+        server
+    },
+    proto::{kvraftpb::*, raftpb::*},
+    raft,
+    raft::persister::*
+};
 
 static ID: AtomicUsize = AtomicUsize::new(300_000);
 
@@ -20,8 +28,8 @@ fn uniqstring() -> String {
 
 struct Servers {
     kvservers: Vec<Option<server::Node>>,
-    saved: Vec<Arc<SimplePersister>>,
-    endnames: Vec<Vec<String>>,
+    saved:     Vec<Arc<SimplePersister>>,
+    endnames:  Vec<Vec<String>>
 }
 
 fn init_logger() {
@@ -31,23 +39,23 @@ fn init_logger() {
 }
 
 pub struct Config {
-    pub net: labrpc::Network,
-    pub n: usize,
-    servers: Mutex<Servers>,
-    clerks: Mutex<HashMap<String, Vec<String>>>,
+    pub net:        labrpc::Network,
+    pub n:          usize,
+    servers:        Mutex<Servers>,
+    clerks:         Mutex<HashMap<String, Vec<String>>>,
     next_client_id: AtomicUsize,
-    maxraftstate: Option<usize>,
+    maxraftstate:   Option<usize>,
 
     // time at which the Config was created.
     start: Instant,
 
     // begin()/end() statistics
     // time at which test_test.go called cfg.begin()
-    t0: Mutex<Instant>,
+    t0:    Mutex<Instant>,
     // rpc_total() at start of test
     rpcs0: AtomicUsize,
     // number of agreements
-    ops: AtomicUsize,
+    ops:   AtomicUsize
 }
 
 impl Config {
@@ -56,8 +64,10 @@ impl Config {
 
         let servers = Servers {
             kvservers: vec![None; n],
-            saved: (0..n).map(|_| Arc::new(SimplePersister::new())).collect(),
-            endnames: vec![vec![String::new(); n]; n],
+            saved:     (0..n)
+                .map(|_| Arc::new(SimplePersister::new()))
+                .collect(),
+            endnames:  vec![vec![String::new(); n]; n]
         };
         let cfg = Config {
             n,
@@ -70,7 +80,7 @@ impl Config {
             start: Instant::now(),
             t0: Mutex::new(Instant::now()),
             rpcs0: AtomicUsize::new(0),
-            ops: AtomicUsize::new(0),
+            ops: AtomicUsize::new(0)
         };
 
         // create a full set of KV servers.
@@ -86,7 +96,8 @@ impl Config {
     }
 
     pub fn op(&self) {
-        self.ops.fetch_add(1, Ordering::Relaxed);
+        self.ops
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     fn rpc_total(&self) -> usize {
@@ -169,7 +180,7 @@ impl Config {
     pub fn connect_all(&self) {
         let servers = self.servers.lock().unwrap();
         for i in 0..self.n {
-            self.connect(i, &self.all(), &*servers);
+            self.connect(i, &self.all(), &servers);
         }
     }
 
@@ -178,12 +189,12 @@ impl Config {
         debug!("partition servers into: {:?} {:?}", p1, p2);
         let servers = self.servers.lock().unwrap();
         for i in p1 {
-            self.disconnect(*i, p2, &*servers);
-            self.connect(*i, p1, &*servers);
+            self.disconnect(*i, p2, &servers);
+            self.connect(*i, p1, &servers);
         }
         for i in p2 {
-            self.disconnect(*i, p1, &*servers);
-            self.connect(*i, p2, &*servers);
+            self.disconnect(*i, p1, &servers);
+            self.connect(*i, p2, &servers);
         }
     }
 
@@ -197,22 +208,32 @@ impl Config {
         for j in 0..self.n {
             let name = uniqstring();
             endnames.push(name.clone());
-            let cli = self.net.create_client(name.clone());
+            let cli = self
+                .net
+                .create_client(name.clone());
             ends.push(KvClient::new(cli));
-            self.net.connect(&name, &format!("{}", j));
+            self.net
+                .connect(&name, &format!("{}", j));
         }
 
         ends.shuffle(&mut rand::thread_rng());
         let ck_name = uniqstring();
         let ck = client::Clerk::new(ck_name.clone(), ends);
-        self.clerks.lock().unwrap().insert(ck_name, endnames);
-        self.next_client_id.fetch_add(1, Ordering::Relaxed);
+        self.clerks
+            .lock()
+            .unwrap()
+            .insert(ck_name, endnames);
+        self.next_client_id
+            .fetch_add(1, Ordering::Relaxed);
         self.connect_client(&ck, to);
         ck
     }
 
     pub fn delete_client(&self, ck: &client::Clerk) {
-        self.clerks.lock().unwrap().remove(&ck.name);
+        self.clerks
+            .lock()
+            .unwrap()
+            .remove(&ck.name);
     }
 
     pub fn connect_client(&self, ck: &client::Clerk, to: &[usize]) {
@@ -232,7 +253,7 @@ impl Config {
     /// Shutdown a server by isolating it
     pub fn shutdown_server(&self, i: usize) {
         let mut servers = self.servers.lock().unwrap();
-        self.disconnect(i, &self.all(), &*servers);
+        self.disconnect(i, &self.all(), &servers);
 
         // disable client connections to the server.
         // it's important to do this before creating
@@ -240,7 +261,8 @@ impl Config {
         // the possibility of the server returning a
         // positive reply to an Append but persisting
         // the result in the superseded Persister.
-        self.net.delete_server(&format!("{}", i));
+        self.net
+            .delete_server(&format!("{}", i));
 
         // a fresh persister, in case old instance
         // continues to update the Persister.
@@ -260,14 +282,22 @@ impl Config {
     pub fn start_server(&self, i: usize) {
         // a fresh set of outgoing ClientEnd names.
         let mut servers = self.servers.lock().unwrap();
-        servers.endnames[i] = (0..self.n).map(|_| uniqstring()).collect();
+        servers.endnames[i] = (0..self.n)
+            .map(|_| uniqstring())
+            .collect();
 
         // a fresh set of ClientEnds.
         let mut ends = Vec::with_capacity(self.n);
-        for (j, name) in servers.endnames[i].iter().enumerate() {
-            let cli = self.net.create_client(name.clone());
+        for (j, name) in servers.endnames[i]
+            .iter()
+            .enumerate()
+        {
+            let cli = self
+                .net
+                .create_client(name.clone());
             ends.push(RaftClient::new(cli));
-            self.net.connect(name, &format!("{}", j));
+            self.net
+                .connect(name, &format!("{}", j));
         }
 
         // a fresh persister, so old instance doesn't overwrite
@@ -294,7 +324,11 @@ impl Config {
 
     pub fn leader(&self) -> Result<usize> {
         let servers = self.servers.lock().unwrap();
-        for (i, kv) in servers.kvservers.iter().enumerate() {
+        for (i, kv) in servers
+            .kvservers
+            .iter()
+            .enumerate()
+        {
             if let Some(kv) = kv {
                 if kv.is_leader() {
                     return Ok(i);
@@ -313,7 +347,8 @@ impl Config {
             if i != l {
                 if p1.len() < self.n / 2 + 1 {
                     p1.push(i);
-                } else {
+                }
+                else {
                     p2.push(i);
                 }
             }
@@ -329,8 +364,10 @@ impl Config {
         println!(); // Force the log starts at a new line.
         info!("{} ...", description);
         *self.t0.lock().unwrap() = Instant::now();
-        self.rpcs0.store(self.rpc_total(), Ordering::Relaxed);
-        self.ops.store(0, Ordering::Relaxed);
+        self.rpcs0
+            .store(self.rpc_total(), Ordering::Relaxed);
+        self.ops
+            .store(0, Ordering::Relaxed);
     }
 
     /// End a Test -- the fact that we got here means there

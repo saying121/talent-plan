@@ -1,55 +1,63 @@
-use std::collections::HashMap;
-use std::future::Future;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::{
+    collections::HashMap,
+    future::Future,
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc, Mutex
+    },
+    time::Duration
+};
 
-use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
-use futures::executor::ThreadPool;
-use futures::future::FutureExt;
-use futures::select;
-use futures::stream::StreamExt;
+use futures::{
+    channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
+    executor::ThreadPool,
+    future::FutureExt,
+    select,
+    stream::StreamExt
+};
 use futures_timer::Delay;
 use log::{debug, error};
 use rand::{thread_rng, Rng};
 
-use crate::client::{Client, Rpc};
-use crate::error::{Error, Result};
-use crate::server::Server;
+use crate::{
+    client::{Client, Rpc},
+    error::{Error, Result},
+    server::Server
+};
 
 #[derive(Debug)]
 struct EndInfo {
-    enabled: bool,
-    reliable: bool,
+    enabled:         bool,
+    reliable:        bool,
     long_reordering: bool,
-    server: Option<Server>,
+    server:          Option<Server>
 }
 
 struct Endpoints {
     // by client name
-    enabled: HashMap<String, bool>,
+    enabled:     HashMap<String, bool>,
     // servers, by name
-    servers: HashMap<String, Option<Server>>,
+    servers:     HashMap<String, Option<Server>>,
     // client_name -> server_name
-    connections: HashMap<String, Option<String>>,
+    connections: HashMap<String, Option<String>>
 }
 
 struct NetworkCore {
-    reliable: AtomicBool,
+    reliable:        AtomicBool,
     // pause a long time on send on disabled connection
-    long_delays: AtomicBool,
+    long_delays:     AtomicBool,
     // sometimes delay replies a long time
     long_reordering: AtomicBool,
-    endpoints: Mutex<Endpoints>,
-    count: AtomicUsize,
-    sender: UnboundedSender<Rpc>,
-    poller: ThreadPool,
-    worker: ThreadPool,
+    endpoints:       Mutex<Endpoints>,
+    count:           AtomicUsize,
+    sender:          UnboundedSender<Rpc>,
+    poller:          ThreadPool,
+    worker:          ThreadPool
 }
 
 #[derive(Clone)]
 pub struct Network {
-    core: Arc<NetworkCore>,
+    core: Arc<NetworkCore>
 }
 
 impl Network {
@@ -67,15 +75,18 @@ impl Network {
                 long_delays: AtomicBool::new(false),
                 long_reordering: AtomicBool::new(false),
                 endpoints: Mutex::new(Endpoints {
-                    enabled: HashMap::new(),
-                    servers: HashMap::new(),
-                    connections: HashMap::new(),
+                    enabled:     HashMap::new(),
+                    servers:     HashMap::new(),
+                    connections: HashMap::new()
                 }),
                 count: AtomicUsize::new(0),
-                poller: ThreadPool::builder().pool_size(2).create().unwrap(),
+                poller: ThreadPool::builder()
+                    .pool_size(2)
+                    .create()
+                    .unwrap(),
                 worker: ThreadPool::new().unwrap(),
-                sender,
-            }),
+                sender
+            })
         };
 
         (net, incoming)
@@ -83,23 +94,29 @@ impl Network {
 
     fn start(&self, mut incoming: UnboundedReceiver<Rpc>) {
         let network = self.clone();
-        self.core.poller.spawn_ok(async move {
-            while let Some(mut rpc) = incoming.next().await {
-                let resp = rpc.take_resp_sender().unwrap();
-                let net = network.clone();
-                network.core.poller.spawn_ok(async move {
-                    let res = net.process_rpc(rpc).await;
-                    if let Err(e) = resp.send(res) {
-                        error!("fail to send resp: {:?}", e);
-                    }
-                })
-            }
-        });
+        self.core
+            .poller
+            .spawn_ok(async move {
+                while let Some(mut rpc) = incoming.next().await {
+                    let resp = rpc.take_resp_sender().unwrap();
+                    let net = network.clone();
+                    network
+                        .core
+                        .poller
+                        .spawn_ok(async move {
+                            let res = net.process_rpc(rpc).await;
+                            if let Err(e) = resp.send(res) {
+                                error!("fail to send resp: {:?}", e);
+                            }
+                        })
+                }
+            });
     }
 
     pub fn add_server(&self, server: Server) {
         let mut eps = self.core.endpoints.lock().unwrap();
-        eps.servers.insert(server.core.name.clone(), Some(server));
+        eps.servers
+            .insert(server.core.name.clone(), Some(server));
     }
 
     pub fn delete_server(&self, name: &str) {
@@ -112,13 +129,15 @@ impl Network {
     pub fn create_client(&self, name: String) -> Client {
         let sender = self.core.sender.clone();
         let mut eps = self.core.endpoints.lock().unwrap();
-        eps.enabled.insert(name.clone(), false);
-        eps.connections.insert(name.clone(), None);
+        eps.enabled
+            .insert(name.clone(), false);
+        eps.connections
+            .insert(name.clone(), None);
         Client {
             name,
             sender,
             worker: self.core.worker.clone(),
-            hooks: Arc::new(Mutex::new(None)),
+            hooks: Arc::new(Mutex::new(None))
         }
     }
 
@@ -138,28 +157,40 @@ impl Network {
             if enabled { "enabled" } else { "disabled" }
         );
         let mut eps = self.core.endpoints.lock().unwrap();
-        eps.enabled.insert(client_name.to_owned(), enabled);
+        eps.enabled
+            .insert(client_name.to_owned(), enabled);
     }
 
     pub fn set_reliable(&self, yes: bool) {
-        self.core.reliable.store(yes, Ordering::Release);
+        self.core
+            .reliable
+            .store(yes, Ordering::Release);
     }
 
     pub fn set_long_reordering(&self, yes: bool) {
-        self.core.long_reordering.store(yes, Ordering::Release);
+        self.core
+            .long_reordering
+            .store(yes, Ordering::Release);
     }
 
     pub fn set_long_delays(&self, yes: bool) {
-        self.core.long_delays.store(yes, Ordering::Release);
+        self.core
+            .long_delays
+            .store(yes, Ordering::Release);
     }
 
     pub fn count(&self, server_name: &str) -> usize {
         let eps = self.core.endpoints.lock().unwrap();
-        eps.servers[server_name].as_ref().unwrap().count()
+        eps.servers[server_name]
+            .as_ref()
+            .unwrap()
+            .count()
     }
 
     pub fn total_count(&self) -> usize {
-        self.core.count.load(Ordering::Relaxed)
+        self.core
+            .count
+            .load(Ordering::Relaxed)
     }
 
     fn end_info(&self, client_name: &str) -> EndInfo {
@@ -170,22 +201,35 @@ impl Network {
         }
         EndInfo {
             enabled: eps.enabled[client_name],
-            reliable: self.core.reliable.load(Ordering::Acquire),
-            long_reordering: self.core.long_reordering.load(Ordering::Acquire),
-            server,
+            reliable: self
+                .core
+                .reliable
+                .load(Ordering::Acquire),
+            long_reordering: self
+                .core
+                .long_reordering
+                .load(Ordering::Acquire),
+            server
         }
     }
 
     fn is_server_dead(&self, client_name: &str, server_name: &str, server_id: usize) -> bool {
         let eps = self.core.endpoints.lock().unwrap();
         !eps.enabled[client_name]
-            || eps.servers.get(server_name).map_or(true, |o| {
-                o.as_ref().map(|s| s.core.id != server_id).unwrap_or(true)
-            })
+            || eps
+                .servers
+                .get(server_name)
+                .map_or(true, |o| {
+                    o.as_ref()
+                        .map(|s| s.core.id != server_id)
+                        .unwrap_or(true)
+                })
     }
 
     async fn process_rpc(&self, rpc: Rpc) -> Result<Vec<u8>> {
-        self.core.count.fetch_add(1, Ordering::Relaxed);
+        self.core
+            .count
+            .fetch_add(1, Ordering::Relaxed);
         let network = self.clone();
         let end_info = self.end_info(&rpc.client_name);
         debug!("{:?} process with {:?}", rpc, end_info);
@@ -193,7 +237,7 @@ impl Network {
             enabled,
             reliable,
             long_reordering,
-            server,
+            server
         } = end_info;
 
         match (enabled, server) {
@@ -202,7 +246,8 @@ impl Network {
                     // short delay
                     let ms = thread_rng().gen::<u64>() % 27;
                     Some(ms)
-                } else {
+                }
+                else {
                     None
                 };
 
@@ -218,7 +263,8 @@ impl Network {
                     // delay the response for a while
                     let upper_bound: u64 = 1 + thread_rng().gen_range(0, 2000);
                     Some(200 + thread_rng().gen_range(0, upper_bound))
-                } else {
+                }
+                else {
                     None
                 };
 
@@ -229,17 +275,22 @@ impl Network {
                     long_reordering,
                     rpc,
                     network,
-                    server,
+                    server
                 )
                 .await
-            }
+            },
             _ => {
                 // simulate no reply and eventual timeout.
-                let ms = if self.core.long_delays.load(Ordering::Acquire) {
+                let ms = if self
+                    .core
+                    .long_delays
+                    .load(Ordering::Acquire)
+                {
                     // let Raft tests check that leader doesn't send
                     // RPCs synchronously.
                     thread_rng().gen::<u64>() % 7000
-                } else {
+                }
+                else {
                     // many kv tests require the client to try each
                     // server in fairly rapid succession.
                     thread_rng().gen::<u64>() % 100
@@ -255,7 +306,7 @@ impl Network {
     /// Spawns a future to run on this net framework.
     pub fn spawn<F>(&self, f: F)
     where
-        F: Future<Output = ()> + Send + 'static,
+        F: Future<Output = ()> + Send + 'static
     {
         self.core.worker.spawn_ok(f);
     }
@@ -263,7 +314,7 @@ impl Network {
     /// Spawns a future to run on this net framework.
     pub fn spawn_poller<F>(&self, f: F)
     where
-        F: Future<Output = ()> + Send + 'static,
+        F: Future<Output = ()> + Send + 'static
     {
         self.core.poller.spawn_ok(f);
     }
@@ -275,7 +326,7 @@ async fn process_rpc(
     long_reordering: Option<u64>,
     mut rpc: Rpc,
     network: Network,
-    server: Server,
+    server: Server
 ) -> Result<Vec<u8>> {
     // Dispatch ===============================================================
     if let Some(delay) = delay {
@@ -312,7 +363,8 @@ async fn process_rpc(
 
     let resp = if let Some(hooks) = rpc.hooks.lock().unwrap().as_ref() {
         hooks.after_dispatch(fq_name, resp)?
-    } else {
+    }
+    else {
         resp?
     };
 
@@ -333,7 +385,8 @@ async fn process_rpc(
         debug!("{:?} next long reordering {}ms", rpc, reordering);
         Delay::new(Duration::from_millis(reordering)).await;
         Ok(resp)
-    } else {
+    }
+    else {
         Ok(resp)
     }
 }
@@ -346,7 +399,7 @@ async fn server_dead(
     net: Network,
     client_name: &str,
     server_name: &str,
-    server_id: usize,
+    server_id: usize
 ) {
     loop {
         Delay::new(interval).await;

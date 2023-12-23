@@ -61,9 +61,9 @@ mod tests {
     fn test_basic_encode_decode() {
         let msg = fixture::Msg {
             r#type: fixture::msg::Type::Put as _,
-            id: 42,
-            name: "the answer".to_owned(),
-            paylad: vec![vec![7; 3]; 2],
+            id:     42,
+            name:   "the answer".to_owned(),
+            paylad: vec![vec![7; 3]; 2]
         };
         let mut buf = vec![];
         encode(&msg, &mut buf).unwrap();

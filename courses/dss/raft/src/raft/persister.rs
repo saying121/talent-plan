@@ -48,21 +48,25 @@ impl<T: ?Sized + Sync + Persister> Persister for Arc<T> {
 pub struct SimplePersister {
     states: Mutex<(
         Vec<u8>, // raft state
-        Vec<u8>, // snapshot
-    )>,
+        Vec<u8>  // snapshot
+    )>
 }
 
 impl SimplePersister {
     pub fn new() -> SimplePersister {
         SimplePersister {
-            states: Mutex::default(),
+            states: Mutex::default()
         }
     }
 }
 
 impl Persister for SimplePersister {
     fn raft_state(&self) -> Vec<u8> {
-        self.states.lock().unwrap().0.clone()
+        self.states
+            .lock()
+            .unwrap()
+            .0
+            .clone()
     }
 
     fn save_raft_state(&self, state: Vec<u8>) {
@@ -75,7 +79,11 @@ impl Persister for SimplePersister {
     }
 
     fn snapshot(&self) -> Vec<u8> {
-        self.states.lock().unwrap().1.clone()
+        self.states
+            .lock()
+            .unwrap()
+            .1
+            .clone()
     }
 }
 

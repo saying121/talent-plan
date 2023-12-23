@@ -5,7 +5,7 @@ pub enum Error {
     Encode(labcodec::EncodeError),
     Decode(labcodec::DecodeError),
     Rpc(labrpc::Error),
-    NotLeader,
+    NotLeader
 }
 
 impl fmt::Display for Error {
@@ -20,7 +20,7 @@ impl error::Error for Error {
             Error::Encode(ref e) => Some(e),
             Error::Decode(ref e) => Some(e),
             Error::Rpc(ref e) => Some(e),
-            _ => None,
+            _ => None
         }
     }
 }

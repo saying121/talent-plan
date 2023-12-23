@@ -1,7 +1,11 @@
-use std::collections::hash_map::{Entry, HashMap};
-use std::fmt;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::{
+    collections::hash_map::{Entry, HashMap},
+    fmt,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc
+    }
+};
 
 use futures::future::{self, BoxFuture};
 
@@ -18,23 +22,23 @@ pub trait HandlerFactory: Sync + Send + 'static {
 }
 
 pub struct ServerBuilder {
-    name: String,
+    name:                String,
     // Service name -> service methods
-    pub(crate) services: HashMap<&'static str, Box<dyn HandlerFactory>>,
+    pub(crate) services: HashMap<&'static str, Box<dyn HandlerFactory>>
 }
 
 impl ServerBuilder {
     pub fn new(name: String) -> ServerBuilder {
         ServerBuilder {
             name,
-            services: HashMap::new(),
+            services: HashMap::new()
         }
     }
 
     pub fn add_service(
         &mut self,
         service_name: &'static str,
-        factory: Box<dyn HandlerFactory>,
+        factory: Box<dyn HandlerFactory>
     ) -> Result<()> {
         match self.services.entry(service_name) {
             Entry::Occupied(_) => Err(Error::Other(format!(
@@ -51,31 +55,33 @@ impl ServerBuilder {
     pub fn build(self) -> Server {
         Server {
             core: Arc::new(ServerCore {
-                name: self.name,
+                name:     self.name,
                 services: self.services,
-                id: ID_ALLOC.fetch_add(1, Ordering::Relaxed),
-                count: AtomicUsize::new(0),
-            }),
+                id:       ID_ALLOC.fetch_add(1, Ordering::Relaxed),
+                count:    AtomicUsize::new(0)
+            })
         }
     }
 }
 
 pub(crate) struct ServerCore {
     pub(crate) name: String,
-    pub(crate) id: usize,
+    pub(crate) id:   usize,
 
     pub(crate) services: HashMap<&'static str, Box<dyn HandlerFactory>>,
-    pub(crate) count: AtomicUsize,
+    pub(crate) count:    AtomicUsize
 }
 
 #[derive(Clone)]
 pub struct Server {
-    pub(crate) core: Arc<ServerCore>,
+    pub(crate) core: Arc<ServerCore>
 }
 
 impl Server {
     pub fn count(&self) -> usize {
-        self.core.count.load(Ordering::Relaxed)
+        self.core
+            .count
+            .load(Ordering::Relaxed)
     }
 
     pub fn name(&self) -> &str {
@@ -83,7 +89,9 @@ impl Server {
     }
 
     pub(crate) fn dispatch(&self, fq_name: &'static str, req: &[u8]) -> RpcFuture<Result<Vec<u8>>> {
-        self.core.count.fetch_add(1, Ordering::Relaxed);
+        self.core
+            .count
+            .fetch_add(1, Ordering::Relaxed);
         let mut names = fq_name.split('.');
         let service_name = match names.next() {
             Some(n) => n,
@@ -103,10 +111,15 @@ impl Server {
                 ))));
             }
         };
-        if let Some(factory) = self.core.services.get(service_name) {
+        if let Some(factory) = self
+            .core
+            .services
+            .get(service_name)
+        {
             let handle = factory.handler(method_name);
             handle(req)
-        } else {
+        }
+        else {
             Box::pin(future::err(Error::Unimplemented(format!(
                 "unknown {}",
                 fq_name

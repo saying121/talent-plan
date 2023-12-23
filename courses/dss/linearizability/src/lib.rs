@@ -2,29 +2,35 @@ mod bitset;
 pub mod model;
 pub mod models;
 
-use std::cell::{Ref, RefCell};
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{channel, Receiver, RecvTimeoutError};
-use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
+use std::{
+    cell::{Ref, RefCell},
+    collections::HashMap,
+    fmt::Debug,
+    rc::Rc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::{channel, Receiver, RecvTimeoutError},
+        Arc
+    },
+    thread,
+    time::Duration
+};
 
-use crate::bitset::Bitset;
-use crate::model::{Event, EventKind, Events, Model, Operations, Value};
+use crate::{
+    bitset::Bitset,
+    model::{Event, EventKind, Events, Model, Operations, Value}
+};
 
 enum EntryKind {
     CallEntry,
-    ReturnEntry,
+    ReturnEntry
 }
 
 struct Entry<T> {
-    pub kind: EntryKind,
+    pub kind:  EntryKind,
     pub value: T,
-    pub id: usize,
-    pub time: i64,
+    pub id:    usize,
+    pub time:  i64
 }
 
 fn make_entries<I: Debug, O: Debug>(history: Operations<I, O>) -> Vec<Entry<Value<I, O>>> {
@@ -34,26 +40,32 @@ fn make_entries<I: Debug, O: Debug>(history: Operations<I, O>) -> Vec<Entry<Valu
             kind: EntryKind::CallEntry,
             value: Value::Input(elem.input),
             id,
-            time: elem.call,
+            time: elem.call
         });
         entries.push(Entry {
             kind: EntryKind::ReturnEntry,
             value: Value::Output(elem.output),
             id,
-            time: elem.finish,
+            time: elem.finish
         })
     }
-    entries.sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap());
+    entries.sort_by(|a, b| {
+        a.time
+            .partial_cmp(&b.time)
+            .unwrap()
+    });
     entries
 }
 
 struct LinkedNodes<T: Debug> {
-    head: Option<LinkNode<T>>,
+    head: Option<LinkNode<T>>
 }
 
 impl<T: Debug> LinkedNodes<T> {
     pub fn new() -> Self {
-        LinkedNodes { head: None }
+        LinkedNodes {
+            head: None
+        }
     }
 
     pub fn head(&self) -> Option<LinkNode<T>> {
@@ -67,19 +79,19 @@ impl<T: Debug> LinkedNodes<T> {
         for entry in entries.into_iter().rev() {
             nodes.push_front(match entry.kind {
                 EntryKind::CallEntry => Rc::new(RefCell::new(Node {
-                    value: entry.value,
+                    value:   entry.value,
                     matched: matches.get(&entry.id).cloned(),
-                    id: entry.id,
-                    next: None,
-                    prev: None,
+                    id:      entry.id,
+                    next:    None,
+                    prev:    None
                 })),
                 EntryKind::ReturnEntry => {
                     let node = Rc::new(RefCell::new(Node {
-                        value: entry.value,
+                        value:   entry.value,
                         matched: None,
-                        id: entry.id,
-                        next: None,
-                        prev: None,
+                        id:      entry.id,
+                        next:    None,
+                        prev:    None
                     }));
                     matches.insert(entry.id, node.clone());
                     node
@@ -106,7 +118,7 @@ impl<T: Debug> LinkedNodes<T> {
                 old_head.borrow_mut().prev = Some(new_head.clone());
                 new_head.borrow_mut().next = Some(old_head);
                 self.head = Some(new_head);
-            }
+            },
             None => {
                 self.head = Some(new_head);
             }
@@ -117,11 +129,11 @@ impl<T: Debug> LinkedNodes<T> {
 type LinkNode<T> = Rc<RefCell<Node<T>>>;
 
 struct Node<T: Debug> {
-    pub value: T,
+    pub value:   T,
     pub matched: Option<LinkNode<T>>,
-    pub id: usize,
-    pub next: Option<LinkNode<T>>,
-    pub prev: Option<LinkNode<T>>,
+    pub id:      usize,
+    pub next:    Option<LinkNode<T>>,
+    pub prev:    Option<LinkNode<T>>
 }
 
 fn renumber<T>(events: Vec<Event<T>>) -> Vec<Event<T>> {
@@ -130,12 +142,14 @@ fn renumber<T>(events: Vec<Event<T>>) -> Vec<Event<T>> {
     let mut id: usize = 0;
     for event in events {
         e.push(Event {
-            kind: event.kind,
+            kind:  event.kind,
             value: event.value,
-            id: *m.entry(event.id).or_insert_with(|| {
-                id += 1;
-                id - 1
-            }),
+            id:    *m
+                .entry(event.id)
+                .or_insert_with(|| {
+                    id += 1;
+                    id - 1
+                })
         });
     }
     e
@@ -146,17 +160,17 @@ fn convert_entries<T>(events: Vec<Event<T>>) -> Vec<Entry<T>> {
     for event in events {
         entries.push(match event.kind {
             EventKind::CallEvent => Entry {
-                kind: EntryKind::CallEntry,
+                kind:  EntryKind::CallEntry,
                 value: event.value,
-                id: event.id,
-                time: -1,
+                id:    event.id,
+                time:  -1
             },
             EventKind::ReturnEvent => Entry {
-                kind: EntryKind::ReturnEntry,
+                kind:  EntryKind::ReturnEntry,
                 value: event.value,
-                id: event.id,
-                time: -1,
-            },
+                id:    event.id,
+                time:  -1
+            }
         })
     }
     entries
@@ -164,17 +178,21 @@ fn convert_entries<T>(events: Vec<Event<T>>) -> Vec<Entry<T>> {
 
 struct CacheEntry<T> {
     linearized: Bitset,
-    state: T,
+    state:      T
 }
 
 fn cache_contains<M: Model>(
     model: &M,
     cache: &HashMap<u64, Vec<CacheEntry<M::State>>>,
-    entry: &CacheEntry<M::State>,
+    entry: &CacheEntry<M::State>
 ) -> bool {
     if cache.contains_key(&entry.linearized.hash()) {
         for elem in &cache[&entry.linearized.hash()] {
-            if entry.linearized.equals(&elem.linearized) && model.equal(&entry.state, &elem.state) {
+            if entry
+                .linearized
+                .equals(&elem.linearized)
+                && model.equal(&entry.state, &elem.state)
+            {
                 return true;
             }
         }
@@ -184,7 +202,7 @@ fn cache_contains<M: Model>(
 
 struct CallsEntry<V: Debug, T> {
     entry: Option<LinkNode<V>>,
-    state: T,
+    state: T
 }
 
 fn lift<T: Debug>(entry: &LinkNode<T>) {
@@ -222,7 +240,7 @@ fn unlift<T: Debug>(entry: &LinkNode<T>) {
 fn check_single<M: Model>(
     model: M,
     mut subhistory: LinkedNodes<Value<M::Input, M::Output>>,
-    kill: Arc<AtomicBool>,
+    kill: Arc<AtomicBool>
 ) -> bool {
     let n = subhistory.len() / 2;
     let mut linearized = Bitset::new(n);
@@ -231,11 +249,11 @@ fn check_single<M: Model>(
 
     let mut state = model.init();
     subhistory.push_front(Rc::new(RefCell::new(Node {
-        value: Value::None,
+        value:   Value::None,
         matched: None,
-        id: usize::max_value(),
-        prev: None,
-        next: None,
+        id:      usize::max_value(),
+        prev:    None,
+        next:    None
     })));
     let head_entry = subhistory.head().unwrap();
     let mut entry = head_entry.borrow().next.clone();
@@ -243,13 +261,23 @@ fn check_single<M: Model>(
         if kill.load(Ordering::SeqCst) {
             return false;
         }
-        let matched = entry.as_ref().unwrap().borrow().matched.clone();
+        let matched = entry
+            .as_ref()
+            .unwrap()
+            .borrow()
+            .matched
+            .clone();
         entry = if let Some(matching) = matched {
             // the return entry
             let res = model.step(
                 &state,
-                entry.as_ref().unwrap().borrow().value.input(),
-                matching.borrow().value.output(),
+                entry
+                    .as_ref()
+                    .unwrap()
+                    .borrow()
+                    .value
+                    .input(),
+                matching.borrow().value.output()
             );
             match res {
                 (true, new_state) => {
@@ -257,26 +285,41 @@ fn check_single<M: Model>(
                     new_linearized.set(entry.as_ref().unwrap().borrow().id);
                     let new_cache_entry = CacheEntry {
                         linearized: new_linearized.clone(),
-                        state: new_state.clone(),
+                        state:      new_state.clone()
                     };
                     if !cache_contains(&model, &cache, &new_cache_entry) {
                         let hash = new_linearized.hash();
-                        cache.entry(hash).or_default().push(new_cache_entry);
+                        cache
+                            .entry(hash)
+                            .or_default()
+                            .push(new_cache_entry);
                         calls.push(CallsEntry {
                             entry: entry.clone(),
-                            state,
+                            state
                         });
                         state = new_state;
                         linearized.set(entry.as_ref().unwrap().borrow().id);
                         lift(entry.as_ref().unwrap());
                         head_entry.borrow().next.clone()
-                    } else {
-                        entry.as_ref().unwrap().borrow().next.clone()
                     }
-                }
-                (false, _) => entry.as_ref().unwrap().borrow().next.clone(),
+                    else {
+                        entry
+                            .as_ref()
+                            .unwrap()
+                            .borrow()
+                            .next
+                            .clone()
+                    }
+                },
+                (false, _) => entry
+                    .as_ref()
+                    .unwrap()
+                    .borrow()
+                    .next
+                    .clone()
             }
-        } else {
+        }
+        else {
             if calls.is_empty() {
                 return false;
             }
@@ -285,7 +328,12 @@ fn check_single<M: Model>(
             state = calls_top.state;
             linearized.clear(entry.as_ref().unwrap().borrow().id);
             unlift(entry.as_ref().unwrap());
-            entry.as_ref().unwrap().borrow().next.clone()
+            entry
+                .as_ref()
+                .unwrap()
+                .borrow()
+                .next
+                .clone()
         }
     }
     true
@@ -300,7 +348,7 @@ pub fn check_operations<M: Model>(model: M, history: Operations<M::Input, M::Out
 pub fn check_operations_timeout<M: Model>(
     model: M,
     history: Operations<M::Input, M::Output>,
-    timeout: Duration,
+    timeout: Duration
 ) -> bool {
     let partitions = model.partition(history);
 
@@ -335,7 +383,7 @@ pub fn check_events<M: Model>(model: M, history: Events<M::Input, M::Output>) ->
 pub fn check_events_timeout<M: Model>(
     model: M,
     history: Events<M::Input, M::Output>,
-    timeout: Duration,
+    timeout: Duration
 ) -> bool {
     let partitions = model.partition_event(history);
 
@@ -365,13 +413,14 @@ fn wait_res(
     rx: Receiver<bool>,
     kill: Arc<AtomicBool>,
     mut count: usize,
-    timeout: Duration,
+    timeout: Duration
 ) -> bool {
     let mut ok = true;
     loop {
         match if timeout.as_secs() == 0 && timeout.subsec_nanos() == 0 {
             rx.recv().map_err(From::from)
-        } else {
+        }
+        else {
             rx.recv_timeout(timeout)
         } {
             Ok(res) => {
@@ -384,9 +433,9 @@ fn wait_res(
                 if count == 0 {
                     break;
                 }
-            }
+            },
             Err(RecvTimeoutError::Timeout) => break,
-            Err(e) => panic!("recv err: {}", e),
+            Err(e) => panic!("recv err: {}", e)
         }
     }
     ok

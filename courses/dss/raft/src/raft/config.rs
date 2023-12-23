@@ -1,17 +1,17 @@
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex
+    },
+    thread,
+    time::{Duration, Instant}
+};
 
-use futures::channel::mpsc::unbounded;
-use futures::future;
-use futures::stream::StreamExt;
+use futures::{channel::mpsc::unbounded, future, stream::StreamExt};
 use rand::Rng;
 
-use crate::proto::raftpb::*;
-use crate::raft;
-use crate::raft::persister::*;
+use crate::{proto::raftpb::*, raft, raft::persister::*};
 
 pub const SNAPSHOT_INTERVAL: u64 = 10;
 
@@ -24,14 +24,14 @@ fn uniqstring() -> String {
 #[derive(Clone, PartialEq, Message)]
 pub struct Entry {
     #[prost(uint64, tag = "100")]
-    pub x: u64,
+    pub x: u64
 }
 
 pub struct Storage {
     // copy of each server's committed entries
-    logs: Vec<HashMap<u64, Entry>>,
-    max_index: u64,
-    max_index0: u64,
+    logs:       Vec<HashMap<u64, Entry>>,
+    max_index:  u64,
+    max_index0: u64
 }
 
 impl Storage {
@@ -63,15 +63,15 @@ fn init_logger() {
 }
 
 pub struct Config {
-    pub net: labrpc::Network,
-    n: usize,
+    pub net:       labrpc::Network,
+    n:             usize,
     // use boxed slice to prohibit grow capacity.
-    pub rafts: Arc<Mutex<Box<[Option<raft::Node>]>>>,
+    pub rafts:     Arc<Mutex<Box<[Option<raft::Node>]>>>,
     // whether each server is on the net
     pub connected: Box<[bool]>,
-    saved: Box<[Arc<SimplePersister>]>,
+    saved:         Box<[Arc<SimplePersister>]>,
     // the port file names each sends to
-    endnames: Box<[Box<[String]>]>,
+    endnames:      Box<[Box<[String]>]>,
 
     pub storage: Arc<Mutex<Storage>>,
 
@@ -81,11 +81,11 @@ pub struct Config {
     // begin()/end() statistics
 
     // time at which test_test.go called cfg.begin()
-    t0: Instant,
+    t0:    Instant,
     // rpc_total() at start of test
     rpcs0: usize,
     // number of agreements
-    cmds0: usize,
+    cmds0: usize
 }
 
 impl Config {
@@ -100,9 +100,9 @@ impl Config {
         net.set_reliable(!unreliable);
         net.set_long_delays(true);
         let storage = Storage {
-            logs: vec![HashMap::new(); n],
-            max_index: 0,
-            max_index0: 0,
+            logs:       vec![HashMap::new(); n],
+            max_index:  0,
+            max_index0: 0
         };
         let mut saved = vec![];
         let mut endnames = vec![];
@@ -122,7 +122,7 @@ impl Config {
             start: Instant::now(),
             t0: Instant::now(),
             rpcs0: 0,
-            cmds0: 0,
+            cmds0: 0
         };
 
         for i in 0..n {
@@ -137,7 +137,8 @@ impl Config {
     }
 
     pub fn rpc_count(&self, server: usize) -> usize {
-        self.net.count(&format!("{}", server))
+        self.net
+            .count(&format!("{}", server))
     }
 
     fn rpc_total(&self) -> usize {
@@ -172,7 +173,10 @@ impl Config {
                     let term = state.term();
                     let is_leader = state.is_leader();
                     if is_leader {
-                        leaders.entry(term).or_insert_with(Vec::new).push(i);
+                        leaders
+                            .entry(term)
+                            .or_insert_with(Vec::new)
+                            .push(i);
                     }
                 }
             }
@@ -200,10 +204,14 @@ impl Config {
         let mut term = 0;
         for (i, connected) in self.connected.iter().enumerate() {
             if *connected {
-                let xterm = self.rafts.lock().unwrap()[i].as_ref().unwrap().term();
+                let xterm = self.rafts.lock().unwrap()[i]
+                    .as_ref()
+                    .unwrap()
+                    .term();
                 if term == 0 {
                     term = xterm;
-                } else if term != xterm {
+                }
+                else if term != xterm {
                     panic!("servers disagree on term");
                 }
             }
@@ -215,7 +223,10 @@ impl Config {
     pub fn check_no_leader(&self) {
         for (i, connected) in self.connected.iter().enumerate() {
             if *connected {
-                let is_leader = self.rafts.lock().unwrap()[i].as_ref().unwrap().is_leader();
+                let is_leader = self.rafts.lock().unwrap()[i]
+                    .as_ref()
+                    .unwrap()
+                    .is_leader();
                 if is_leader {
                     panic!("expected no leader, but {} claims to be leader", i);
                 }
@@ -295,8 +306,8 @@ impl Config {
                             Ok((index1, _)) => {
                                 index = Some(index1);
                                 break;
-                            }
-                            Err(e) => debug!("start cmd {:?} failed: {:?}", cmd, e),
+                            },
+                            Err(e) => debug!("start cmd {:?} failed: {:?}", cmd, e)
                         }
                     }
                 }
@@ -322,7 +333,8 @@ impl Config {
                 if !retry {
                     panic!("one({:?}) failed to reach agreement", cmd);
                 }
-            } else {
+            }
+            else {
                 thread::sleep(Duration::from_millis(50));
             }
         }
@@ -389,10 +401,13 @@ impl Config {
         // a fresh set of ClientEnds.
         let mut clients = Vec::with_capacity(self.n);
         for (j, name) in self.endnames[i].iter().enumerate() {
-            let cli = self.net.create_client(name.to_string());
+            let cli = self
+                .net
+                .create_client(name.to_string());
             let client = RaftClient::new(cli);
             clients.push(client);
-            self.net.connect(name, &format!("{}", j));
+            self.net
+                .connect(name, &format!("{}", j));
         }
 
         let (tx, apply_ch) = unbounded();
@@ -404,7 +419,10 @@ impl Config {
         let storage = self.storage.clone();
         let rafts = self.rafts.clone();
         let apply = apply_ch.for_each(move |cmd: raft::ApplyMsg| match cmd {
-            raft::ApplyMsg::Command { data, index } => {
+            raft::ApplyMsg::Command {
+                data,
+                index
+            } => {
                 // debug!("apply {}", index);
                 let entry = labcodec::decode(&data).expect("committed command is not an entry");
                 let mut s = storage.lock().unwrap();
@@ -434,8 +452,12 @@ impl Config {
                         .snapshot(index, &data);
                 }
                 future::ready(())
-            }
-            raft::ApplyMsg::Snapshot { data, index, term } if snapshot => {
+            },
+            raft::ApplyMsg::Snapshot {
+                data,
+                index,
+                term
+            } if snapshot => {
                 // debug!("install snapshot {}", index);
                 if rafts.lock().unwrap()[i]
                     .as_ref()
@@ -449,9 +471,9 @@ impl Config {
                     log.insert(index, entry);
                 }
                 future::ready(())
-            }
+            },
             // ignore other types of ApplyMsg
-            _ => future::ready(()),
+            _ => future::ready(())
         });
         self.net.spawn_poller(apply);
 
@@ -465,7 +487,8 @@ impl Config {
     pub fn crash1(&mut self, i: usize) {
         self.disconnect(i);
         // disable client connections to the server.
-        self.net.delete_server(&format!("{}", i));
+        self.net
+            .delete_server(&format!("{}", i));
 
         // a fresh persister, in case old instance
         // continues to update the Persister.

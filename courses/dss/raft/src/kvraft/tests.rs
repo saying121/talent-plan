@@ -1,24 +1,23 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::task::Poll;
-use std::thread;
-use std::time::{Duration, Instant};
+use std::{
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        mpsc, Arc, Mutex
+    },
+    task::Poll,
+    thread,
+    time::{Duration, Instant}
+};
 
-use futures::channel::oneshot;
-use futures::executor::block_on;
-use futures::future;
-use futures::{Future, FutureExt};
+use futures::{channel::oneshot, executor::block_on, future, Future, FutureExt};
 use futures_timer::Delay;
+use linearizability::{
+    check_operations_timeout,
+    model::Operation,
+    models::{KvInput, KvModel, KvOutput, Op}
+};
 use rand::{seq::SliceRandom, Rng};
 
-use linearizability::check_operations_timeout;
-use linearizability::model::Operation;
-use linearizability::models::{KvInput, KvModel, KvOutput, Op};
-
-use crate::kvraft::client::Clerk;
-use crate::kvraft::config::Config;
+use crate::kvraft::{client::Clerk, config::Config};
 
 /// The tester generously allows solutions to complete elections in one second
 /// (much more than the paper's range of timeouts).
@@ -54,11 +53,11 @@ fn check(cfg: &Config, ck: &Clerk, key: &str, value: &str) {
 fn spawn_clients_and_wait<Func, Fact>(
     cfg: Arc<Config>,
     ncli: usize,
-    fact: Fact,
+    fact: Fact
 ) -> impl Future<Output = ()> + Send + 'static
 where
     Fact: Fn() -> Func + Send + 'static,
-    Func: Fn(usize, &Clerk) + Send + 'static,
+    Func: Fn(usize, &Clerk) + Send + 'static
 {
     let mut cas = Vec::with_capacity(ncli);
     for cli in 0..ncli {
@@ -104,7 +103,8 @@ fn check_clnt_appends(clnt: usize, v: String, count: usize) {
                 );
             }
             lastoff = Some(off);
-        } else {
+        }
+        else {
             panic!(
                 "{:?} missing element {:?} in Append result {:?}",
                 clnt, wanted, v
@@ -134,7 +134,8 @@ fn check_concurrent_appends(v: String, counts: &[usize]) {
                     );
                 }
                 lastoff = Some(off);
-            } else {
+            }
+            else {
                 panic!(
                     "{:?} missing element {:?} in Append result {:?}",
                     i, wanted, v
@@ -148,7 +149,7 @@ fn check_concurrent_appends(v: String, counts: &[usize]) {
 fn partitioner(
     cfg: Arc<Config>,
     ch: mpsc::Sender<bool>,
-    done: Arc<AtomicUsize>,
+    done: Arc<AtomicUsize>
 ) -> impl Future<Output = ()> + Send + 'static {
     fn delay(r: u64) -> Delay {
         Delay::new(RAFT_ELECTION_TIMEOUT + Duration::from_millis(r % 200))
@@ -192,7 +193,7 @@ fn generic_test(
     unreliable: bool,
     crash: bool,
     partitions: bool,
-    maxraftstate: Option<usize>,
+    maxraftstate: Option<usize>
 ) {
     let mut title = "Test: ".to_owned();
     if unreliable {
@@ -212,7 +213,8 @@ fn generic_test(
     }
     if nclients > 1 {
         title += "many clients";
-    } else {
+    }
+    else {
         title += "one client";
     }
     title = format!("{} ({})", title, part); // 3A or 3B
@@ -261,7 +263,8 @@ fn generic_test(
                                 last = next_value(last, &nv);
                                 append(&cfg1, myck, &key, &nv);
                                 j += 1;
-                            } else {
+                            }
+                            else {
                                 debug!("{}: client new get {:?}", cli, key);
                                 let v = get(&cfg1, myck, &key);
                                 if v != last {
@@ -285,7 +288,7 @@ fn generic_test(
             cfg.net.spawn_poller(partitioner(
                 cfg.clone(),
                 partitioner_tx,
-                done_partitioner.clone(),
+                done_partitioner.clone()
             ));
         }
         thread::sleep(Duration::from_secs(5));
@@ -363,7 +366,7 @@ fn generic_test_linearizability(
     unreliable: bool,
     crash: bool,
     partitions: bool,
-    maxraftstate: Option<usize>,
+    maxraftstate: Option<usize>
 ) {
     let mut title = "Test: ".to_owned();
     if unreliable {
@@ -383,7 +386,8 @@ fn generic_test_linearizability(
     }
     if nclients > 1 {
         title += "many clients";
-    } else {
+    }
+    else {
         title += "one client";
     }
     title = format!("{}, linearizability checks ({})", title, part); // 3A or 3B
@@ -435,43 +439,47 @@ fn generic_test_linearizability(
                                 KvInput {
                                     op: Op::Append,
                                     key,
-                                    value: nv,
+                                    value: nv
                                 },
                                 KvOutput {
-                                    value: "".to_string(),
-                                },
+                                    value: "".to_string()
+                                }
                             )
-                        } else if rng.gen::<usize>() % 1000 < 100 {
+                        }
+                        else if rng.gen::<usize>() % 1000 < 100 {
                             put(&cfg1, myck, &key, &nv);
                             j += 1;
                             (
                                 KvInput {
                                     op: Op::Put,
                                     key,
-                                    value: nv,
+                                    value: nv
                                 },
                                 KvOutput {
-                                    value: "".to_string(),
-                                },
+                                    value: "".to_string()
+                                }
                             )
-                        } else {
+                        }
+                        else {
                             let v = get(&cfg1, myck, &key);
                             (
                                 KvInput {
                                     op: Op::Get,
                                     key,
-                                    value: "".to_string(),
+                                    value: "".to_string()
                                 },
-                                KvOutput { value: v },
+                                KvOutput {
+                                    value: v
+                                }
                             )
                         };
 
                         let end = begin.elapsed().as_nanos() as i64;
                         let op = Operation {
-                            input: inp,
-                            call: start,
+                            input:  inp,
+                            call:   start,
                             output: out,
-                            finish: end,
+                            finish: end
                         };
                         let mut data = operations1.lock().unwrap();
                         data.push(op);
@@ -486,7 +494,7 @@ fn generic_test_linearizability(
             cfg.net.spawn_poller(partitioner(
                 cfg.clone(),
                 partitioner_tx,
-                done_partitioner.clone(),
+                done_partitioner.clone()
             ));
         }
         thread::sleep(Duration::from_secs(5));
@@ -547,8 +555,11 @@ fn generic_test_linearizability(
 
     if !check_operations_timeout(
         KvModel {},
-        Arc::try_unwrap(operations).unwrap().into_inner().unwrap(),
-        LINEARIZABILITY_CHECK_TIMEOUT,
+        Arc::try_unwrap(operations)
+            .unwrap()
+            .into_inner()
+            .unwrap(),
+        LINEARIZABILITY_CHECK_TIMEOUT
     ) {
         panic!("history is not linearizable");
     }
@@ -646,30 +657,32 @@ fn test_one_partition_3a() {
     let (done1_tx, done1_rx) = oneshot::channel::<&'static str>();
 
     cfg.begin("Test: no progress in minority (3A)");
-    cfg.net.spawn(future::lazy(move |_| {
-        ckp2a.put("1".to_owned(), "15".to_owned());
-        done0_tx
-            .send("put")
-            .map_err(|e| {
-                warn!("done0 send failed: {:?}", e);
-            })
-            .unwrap();
-    }));
+    cfg.net
+        .spawn(future::lazy(move |_| {
+            ckp2a.put("1".to_owned(), "15".to_owned());
+            done0_tx
+                .send("put")
+                .map_err(|e| {
+                    warn!("done0 send failed: {:?}", e);
+                })
+                .unwrap();
+        }));
     let done0_rx = done0_rx.map(|op| {
         cfg.op();
         op
     });
 
-    cfg.net.spawn(future::lazy(move |_| {
-        // different clerk in p2
-        ckp2b.get("1".to_owned());
-        done1_tx
-            .send("get")
-            .map_err(|e| {
-                warn!("done0 send failed: {:?}", e);
-            })
-            .unwrap();
-    }));
+    cfg.net
+        .spawn(future::lazy(move |_| {
+            // different clerk in p2
+            ckp2b.get("1".to_owned());
+            done1_tx
+                .send("get")
+                .map_err(|e| {
+                    warn!("done0 send failed: {:?}", e);
+                })
+                .unwrap();
+        }));
     let done1_rx = done1_rx.map(|op| {
         cfg.op();
         op
@@ -682,11 +695,11 @@ fn test_one_partition_3a() {
             future::Either::Left((_, dones)) => dones,
             future::Either::Right((future::Either::Left((op, _)), _)) => {
                 panic!("{} in minority completed", op.unwrap())
-            }
+            },
             future::Either::Right((future::Either::Right((op, _)), _)) => {
                 panic!("{} in minority completed", op.unwrap())
             }
-        }),
+        })
     );
 
     check(&cfg, &ckp1, "1", "14");
@@ -711,7 +724,7 @@ fn test_one_partition_3a() {
                 future::Either::Right((future::Either::Left((op, next)), timeout)) => {
                     info!("{} completes", op.unwrap());
                     (timeout, future::Either::Left(next))
-                }
+                },
                 future::Either::Right((future::Either::Right((op, next)), timeout)) => {
                     info!("{} completes", op.unwrap());
                     (timeout, future::Either::Right(next))
@@ -724,7 +737,7 @@ fn test_one_partition_3a() {
         future::select(timeout, next)
             .map(|res| match res {
                 future::Either::Left(_) => panic!("put/get did not complete"),
-                future::Either::Right((op, _)) => info!("{} completes", op.unwrap()),
+                future::Either::Right((op, _)) => info!("{} completes", op.unwrap())
             })
             .await
     });

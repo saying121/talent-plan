@@ -1,10 +1,10 @@
-use std::collections::BTreeMap;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
+    time::Duration
+};
 
-use crate::msg::*;
-use crate::service::*;
-use crate::*;
+use crate::{msg::*, service::*, *};
 
 // TTL is used for a lock key.
 // If the key's lifetime exceeds this value, it should be cleaned up.
@@ -31,7 +31,7 @@ pub type Key = (Vec<u8>, u64);
 #[derive(Clone, PartialEq)]
 pub enum Value {
     Timestamp(u64),
-    Vector(Vec<u8>),
+    Vector(Vec<u8>)
 }
 
 #[derive(Debug, Clone)]
@@ -40,7 +40,7 @@ pub struct Write(Vec<u8>, Vec<u8>);
 pub enum Column {
     Write,
     Data,
-    Lock,
+    Lock
 }
 
 // KvTable is used to simulate Google's Bigtable.
@@ -48,8 +48,8 @@ pub enum Column {
 #[derive(Clone, Default)]
 pub struct KvTable {
     write: BTreeMap<Key, Value>,
-    data: BTreeMap<Key, Value>,
-    lock: BTreeMap<Key, Value>,
+    data:  BTreeMap<Key, Value>,
+    lock:  BTreeMap<Key, Value>
 }
 
 impl KvTable {
@@ -61,7 +61,7 @@ impl KvTable {
         key: Vec<u8>,
         column: Column,
         ts_start_inclusive: Option<u64>,
-        ts_end_inclusive: Option<u64>,
+        ts_end_inclusive: Option<u64>
     ) -> Option<(&Key, &Value)> {
         // Your code here.
         unimplemented!()
@@ -86,7 +86,7 @@ impl KvTable {
 // You may need to get a snapshot from it.
 #[derive(Clone, Default)]
 pub struct MemoryStorage {
-    data: Arc<Mutex<KvTable>>,
+    data: Arc<Mutex<KvTable>>
 }
 
 #[async_trait::async_trait]

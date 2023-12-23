@@ -1,28 +1,40 @@
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
+use std::{
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc
+    },
+    thread,
+    time::Duration
 };
-use std::thread;
-use std::time::Duration;
 
 use labrpc::*;
 use prost::Message;
 
-use crate::client::Client;
-use crate::server::{MemoryStorage, TimestampOracle};
-use crate::service::{add_transaction_service, add_tso_service, TSOClient, TransactionClient};
+use crate::{
+    client::Client,
+    server::{MemoryStorage, TimestampOracle},
+    service::{add_transaction_service, add_tso_service, TSOClient, TransactionClient}
+};
 
 struct CommitHooks {
-    drop_req: AtomicBool,
-    drop_resp: AtomicBool,
-    fail_primary: AtomicBool,
+    drop_req:     AtomicBool,
+    drop_resp:    AtomicBool,
+    fail_primary: AtomicBool
 }
 
 impl RpcHooks for CommitHooks {
     fn before_dispatch(&self, fq_name: &str, req: &[u8]) -> Result<()> {
-        if self.drop_req.load(Ordering::Relaxed) && fq_name == "transaction.commit" {
+        if self
+            .drop_req
+            .load(Ordering::Relaxed)
+            && fq_name == "transaction.commit"
+        {
             let m = crate::msg::CommitRequest::decode(req).unwrap();
-            if m.is_primary && !self.fail_primary.load(Ordering::Relaxed) {
+            if m.is_primary
+                && !self
+                    .fail_primary
+                    .load(Ordering::Relaxed)
+            {
                 return Ok(());
             }
             return Err(Error::Other("reqhook".to_owned()));
@@ -30,7 +42,11 @@ impl RpcHooks for CommitHooks {
         Ok(())
     }
     fn after_dispatch(&self, fq_name: &str, resp: Result<Vec<u8>>) -> Result<Vec<u8>> {
-        if self.drop_resp.load(Ordering::Relaxed) && fq_name == "transaction.commit" {
+        if self
+            .drop_resp
+            .load(Ordering::Relaxed)
+            && fq_name == "transaction.commit"
+        {
             return Err(Error::Other("resphook".to_owned()));
         }
         resp
@@ -61,9 +77,9 @@ fn init(num_clinet: usize) -> (Network, Vec<Client>, Arc<CommitHooks>) {
     rn.add_server(tso_server);
     rn.add_server(server);
     let hook = Arc::new(CommitHooks {
-        drop_req: AtomicBool::new(false),
-        drop_resp: AtomicBool::new(false),
-        fail_primary: AtomicBool::new(false),
+        drop_req:     AtomicBool::new(false),
+        drop_resp:    AtomicBool::new(false),
+        fail_primary: AtomicBool::new(false)
     });
     for i in 0..num_clinet {
         let txn_name_string = format!("txn{}", i);
@@ -98,7 +114,8 @@ fn test_get_timestamp_under_unreliable_network() {
             let res = client.get_timestamp();
             if i == 2 {
                 assert_eq!(res, Err(Error::Timeout));
-            } else {
+            }
+            else {
                 assert!(res.is_ok());
             }
         }));
@@ -341,7 +358,8 @@ fn test_commit_primary_drop_secondary_requests() {
     client0.set(b"3".to_vec(), b"30".to_vec());
     client0.set(b"4".to_vec(), b"40".to_vec());
     client0.set(b"5".to_vec(), b"50".to_vec());
-    hook.drop_req.store(true, Ordering::Relaxed);
+    hook.drop_req
+        .store(true, Ordering::Relaxed);
     assert_eq!(client0.commit(), Ok(true));
 
     let mut client1 = clients[1].to_owned();
@@ -360,7 +378,8 @@ fn test_commit_primary_success() {
     client0.set(b"3".to_vec(), b"30".to_vec());
     client0.set(b"4".to_vec(), b"40".to_vec());
     client0.set(b"5".to_vec(), b"50".to_vec());
-    hook.drop_req.store(true, Ordering::Relaxed);
+    hook.drop_req
+        .store(true, Ordering::Relaxed);
     assert_eq!(client0.commit(), Ok(true));
 
     let mut client1 = clients[1].to_owned();
@@ -379,7 +398,8 @@ fn test_commit_primary_success_without_response() {
     client0.set(b"3".to_vec(), b"30".to_vec());
     client0.set(b"4".to_vec(), b"40".to_vec());
     client0.set(b"5".to_vec(), b"50".to_vec());
-    hook.drop_resp.store(true, Ordering::Relaxed);
+    hook.drop_resp
+        .store(true, Ordering::Relaxed);
     assert_eq!(client0.commit(), Err(Error::Other("resphook".to_owned())));
 
     let mut client1 = clients[1].to_owned();
@@ -398,8 +418,10 @@ fn test_commit_primary_fail() {
     client0.set(b"3".to_vec(), b"30".to_vec());
     client0.set(b"4".to_vec(), b"40".to_vec());
     client0.set(b"5".to_vec(), b"50".to_vec());
-    hook.drop_req.store(true, Ordering::Relaxed);
-    hook.fail_primary.store(true, Ordering::Relaxed);
+    hook.drop_req
+        .store(true, Ordering::Relaxed);
+    hook.fail_primary
+        .store(true, Ordering::Relaxed);
     assert_eq!(client0.commit(), Ok(false));
 
     let mut client1 = clients[1].to_owned();

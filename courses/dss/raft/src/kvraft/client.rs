@@ -4,18 +4,19 @@ use crate::proto::kvraftpb::*;
 
 enum Op {
     Put(String, String),
-    Append(String, String),
+    Append(String, String)
 }
 
 pub struct Clerk {
-    pub name: String,
-    pub servers: Vec<KvClient>,
-    // You will have to modify this struct.
+    pub name:    String,
+    pub servers: Vec<KvClient> // You will have to modify this struct.
 }
 
 impl fmt::Debug for Clerk {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Clerk").field("name", &self.name).finish()
+        f.debug_struct("Clerk")
+            .field("name", &self.name)
+            .finish()
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::msg::{
     CommitRequest, CommitResponse, GetRequest, GetResponse, PrewriteRequest, PrewriteResponse,
-    TimestampRequest, TimestampResponse,
+    TimestampRequest, TimestampResponse
 };
 
 labrpc::service! {

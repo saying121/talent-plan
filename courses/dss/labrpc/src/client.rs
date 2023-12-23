@@ -1,20 +1,25 @@
-use std::fmt;
-use std::sync::{Arc, Mutex};
+use std::{
+    fmt,
+    sync::{Arc, Mutex}
+};
 
-use futures::channel::mpsc::UnboundedSender;
-use futures::channel::oneshot;
-use futures::executor::ThreadPool;
-use futures::future::{self, FutureExt};
+use futures::{
+    channel::{mpsc::UnboundedSender, oneshot},
+    executor::ThreadPool,
+    future::{self, FutureExt}
+};
 
-use crate::error::{Error, Result};
-use crate::server::RpcFuture;
+use crate::{
+    error::{Error, Result},
+    server::RpcFuture
+};
 
 pub struct Rpc {
     pub(crate) client_name: String,
-    pub(crate) fq_name: &'static str,
-    pub(crate) req: Option<Vec<u8>>,
-    pub(crate) resp: Option<oneshot::Sender<Result<Vec<u8>>>>,
-    pub(crate) hooks: Arc<Mutex<Option<Arc<dyn RpcHooks>>>>,
+    pub(crate) fq_name:     &'static str,
+    pub(crate) req:         Option<Vec<u8>>,
+    pub(crate) resp:        Option<oneshot::Sender<Result<Vec<u8>>>>,
+    pub(crate) hooks:       Arc<Mutex<Option<Arc<dyn RpcHooks>>>>
 }
 
 impl Rpc {
@@ -40,19 +45,19 @@ pub trait RpcHooks: Sync + Send + 'static {
 #[derive(Clone)]
 pub struct Client {
     // this end-point's name
-    pub(crate) name: String,
+    pub(crate) name:   String,
     // copy of Network.sender
     pub(crate) sender: UnboundedSender<Rpc>,
-    pub(crate) hooks: Arc<Mutex<Option<Arc<dyn RpcHooks>>>>,
+    pub(crate) hooks:  Arc<Mutex<Option<Arc<dyn RpcHooks>>>>,
 
-    pub worker: ThreadPool,
+    pub worker: ThreadPool
 }
 
 impl Client {
     pub fn call<Req, Rsp>(&self, fq_name: &'static str, req: &Req) -> RpcFuture<Result<Rsp>>
     where
         Req: labcodec::Message,
-        Rsp: labcodec::Message + 'static,
+        Rsp: labcodec::Message + 'static
     {
         let mut buf = vec![];
         if let Err(e) = labcodec::encode(req, &mut buf) {
@@ -65,11 +70,15 @@ impl Client {
             fq_name,
             req: Some(buf),
             resp: Some(tx),
-            hooks: self.hooks.clone(),
+            hooks: self.hooks.clone()
         };
 
         // Sends requests and waits responses.
-        if self.sender.unbounded_send(rpc).is_err() {
+        if self
+            .sender
+            .unbounded_send(rpc)
+            .is_err()
+        {
             return Box::pin(future::err(Error::Stopped));
         }
 
@@ -77,7 +86,7 @@ impl Client {
             match res {
                 Ok(Ok(resp)) => labcodec::decode(&resp).map_err(Error::Decode),
                 Ok(Err(e)) => Err(e),
-                Err(e) => Err(Error::Recv(e)),
+                Err(e) => Err(Error::Recv(e))
             }
         }))
     }

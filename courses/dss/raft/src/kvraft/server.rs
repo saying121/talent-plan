@@ -1,14 +1,12 @@
 use futures::channel::mpsc::unbounded;
 
-use crate::proto::kvraftpb::*;
-use crate::raft;
+use crate::{proto::kvraftpb::*, raft};
 
 pub struct KvServer {
-    pub rf: raft::Node,
-    me: usize,
+    pub rf:       raft::Node,
+    me:           usize,
     // snapshot if log grows this big
-    maxraftstate: Option<usize>,
-    // Your definitions here.
+    maxraftstate: Option<usize> // Your definitions here.
 }
 
 impl KvServer {
@@ -16,7 +14,7 @@ impl KvServer {
         servers: Vec<crate::proto::raftpb::RaftClient>,
         me: usize,
         persister: Box<dyn raft::persister::Persister>,
-        maxraftstate: Option<usize>,
+        maxraftstate: Option<usize>
     ) -> KvServer {
         // You may need initialization code here.
 

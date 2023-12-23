@@ -1,13 +1,12 @@
 use futures::executor::block_on;
-use prost_derive::Message;
-
 use labrpc::*;
+use prost_derive::Message;
 
 /// A Hand-written protobuf messages
 #[derive(Clone, PartialEq, Message)]
 pub struct Echo {
     #[prost(int64, tag = "1")]
-    pub x: i64,
+    pub x: i64
 }
 
 service! {
@@ -40,7 +39,19 @@ fn main() {
     rn.enable(client_name, true);
     rn.connect(client_name, server_name);
 
-    let reply = block_on(async { client.ping(&Echo { x: 777 }).await.unwrap() });
-    assert_eq!(reply, Echo { x: 777 });
+    let reply = block_on(async {
+        client
+            .ping(&Echo {
+                x: 777
+            })
+            .await
+            .unwrap()
+    });
+    assert_eq!(
+        reply,
+        Echo {
+            x: 777
+        }
+    );
     println!("{:?}", reply);
 }
