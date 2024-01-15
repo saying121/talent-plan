@@ -2,10 +2,10 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicUsize, Ordering},
-        Arc, Mutex
+        Arc, Mutex,
     },
     thread,
-    time::{Duration, Instant}
+    time::{Duration, Instant},
 };
 
 use futures::{channel::mpsc::unbounded, future, stream::StreamExt};
@@ -24,14 +24,14 @@ fn uniqstring() -> String {
 #[derive(Clone, PartialEq, Message)]
 pub struct Entry {
     #[prost(uint64, tag = "100")]
-    pub x: u64
+    pub x: u64,
 }
 
 pub struct Storage {
     // copy of each server's committed entries
     logs:       Vec<HashMap<u64, Entry>>,
     max_index:  u64,
-    max_index0: u64
+    max_index0: u64,
 }
 
 impl Storage {
@@ -85,7 +85,7 @@ pub struct Config {
     // rpc_total() at start of test
     rpcs0: usize,
     // number of agreements
-    cmds0: usize
+    cmds0: usize,
 }
 
 impl Config {
@@ -102,7 +102,7 @@ impl Config {
         let storage = Storage {
             logs:       vec![HashMap::new(); n],
             max_index:  0,
-            max_index0: 0
+            max_index0: 0,
         };
         let mut saved = vec![];
         let mut endnames = vec![];
@@ -122,7 +122,7 @@ impl Config {
             start: Instant::now(),
             t0: Instant::now(),
             rpcs0: 0,
-            cmds0: 0
+            cmds0: 0,
         };
 
         for i in 0..n {
@@ -307,7 +307,7 @@ impl Config {
                                 index = Some(index1);
                                 break;
                             },
-                            Err(e) => debug!("start cmd {:?} failed: {:?}", cmd, e)
+                            Err(e) => debug!("start cmd {:?} failed: {:?}", cmd, e),
                         }
                     }
                 }
@@ -419,10 +419,7 @@ impl Config {
         let storage = self.storage.clone();
         let rafts = self.rafts.clone();
         let apply = apply_ch.for_each(move |cmd: raft::ApplyMsg| match cmd {
-            raft::ApplyMsg::Command {
-                data,
-                index
-            } => {
+            raft::ApplyMsg::Command { data, index } => {
                 // debug!("apply {}", index);
                 let entry = labcodec::decode(&data).expect("committed command is not an entry");
                 let mut s = storage.lock().unwrap();
@@ -453,11 +450,7 @@ impl Config {
                 }
                 future::ready(())
             },
-            raft::ApplyMsg::Snapshot {
-                data,
-                index,
-                term
-            } if snapshot => {
+            raft::ApplyMsg::Snapshot { data, index, term } if snapshot => {
                 // debug!("install snapshot {}", index);
                 if rafts.lock().unwrap()[i]
                     .as_ref()
@@ -473,7 +466,7 @@ impl Config {
                 future::ready(())
             },
             // ignore other types of ApplyMsg
-            _ => future::ready(())
+            _ => future::ready(()),
         });
         self.net.spawn_poller(apply);
 

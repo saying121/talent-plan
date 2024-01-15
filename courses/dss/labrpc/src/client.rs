@@ -1,17 +1,17 @@
 use std::{
     fmt,
-    sync::{Arc, Mutex}
+    sync::{Arc, Mutex},
 };
 
 use futures::{
     channel::{mpsc::UnboundedSender, oneshot},
     executor::ThreadPool,
-    future::{self, FutureExt}
+    future::{self, FutureExt},
 };
 
 use crate::{
     error::{Error, Result},
-    server::RpcFuture
+    server::RpcFuture,
 };
 
 pub struct Rpc {
@@ -19,7 +19,7 @@ pub struct Rpc {
     pub(crate) fq_name:     &'static str,
     pub(crate) req:         Option<Vec<u8>>,
     pub(crate) resp:        Option<oneshot::Sender<Result<Vec<u8>>>>,
-    pub(crate) hooks:       Arc<Mutex<Option<Arc<dyn RpcHooks>>>>
+    pub(crate) hooks:       Arc<Mutex<Option<Arc<dyn RpcHooks>>>>,
 }
 
 impl Rpc {
@@ -50,14 +50,14 @@ pub struct Client {
     pub(crate) sender: UnboundedSender<Rpc>,
     pub(crate) hooks:  Arc<Mutex<Option<Arc<dyn RpcHooks>>>>,
 
-    pub worker: ThreadPool
+    pub worker: ThreadPool,
 }
 
 impl Client {
     pub fn call<Req, Rsp>(&self, fq_name: &'static str, req: &Req) -> RpcFuture<Result<Rsp>>
     where
         Req: labcodec::Message,
-        Rsp: labcodec::Message + 'static
+        Rsp: labcodec::Message + 'static,
     {
         let mut buf = vec![];
         if let Err(e) = labcodec::encode(req, &mut buf) {
@@ -70,7 +70,7 @@ impl Client {
             fq_name,
             req: Some(buf),
             resp: Some(tx),
-            hooks: self.hooks.clone()
+            hooks: self.hooks.clone(),
         };
 
         // Sends requests and waits responses.
@@ -86,7 +86,7 @@ impl Client {
             match res {
                 Ok(Ok(resp)) => labcodec::decode(&resp).map_err(Error::Decode),
                 Ok(Err(e)) => Err(e),
-                Err(e) => Err(Error::Recv(e))
+                Err(e) => Err(Error::Recv(e)),
             }
         }))
     }

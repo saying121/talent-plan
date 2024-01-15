@@ -4,17 +4,17 @@ use std::{
     pin::Pin,
     sync::{
         mpsc::{sync_channel, Receiver},
-        Arc, Mutex, Weak
+        Arc, Mutex, Weak,
     },
     time::{Duration, Instant},
-    u64
+    u64,
 };
 
 use futures::{
     channel::mpsc::UnboundedSender,
     future::FutureExt,
     sink::SinkExt,
-    stream::{FuturesUnordered, StreamExt}
+    stream::{FuturesUnordered, StreamExt},
 };
 use futures_timer::Delay;
 
@@ -40,14 +40,14 @@ fn generate_election_timeout() -> Duration {
 pub enum ApplyMsg {
     Command {
         data:  Vec<u8>,
-        index: u64
+        index: u64,
     },
     // For 2D:
     Snapshot {
         data:  Vec<u8>,
         term:  u64,
-        index: u64
-    }
+        index: u64,
+    },
 }
 
 #[derive(Message)]
@@ -60,14 +60,14 @@ struct Persistence {
     voted_for:    Option<u64>,
     /// 日志条目，每一条包括可供状态机执行的命令，收到时的任期号(第一个任期号为1)
     #[prost(message, tag = "3")]
-    log:          Option<Log>
+    log:          Option<Log>,
 }
 
 /// State of a raft peer.
 #[derive(Default, Clone, Debug)]
 pub struct State {
     pub term:      u64,
-    pub is_leader: bool
+    pub is_leader: bool,
 }
 
 impl State {
@@ -86,14 +86,14 @@ struct Log {
     #[prost(message, repeated, tag = "1")]
     entries: Vec<LogEntry>,
     #[prost(uint64, tag = "2")]
-    offset:  u64
+    offset:  u64,
 }
 
 impl Log {
     fn new() -> Self {
         Self {
             entries: vec![LogEntry::default()],
-            offset:  0
+            offset:  0,
         }
     }
     fn first(&self) -> &LogEntry {
@@ -166,7 +166,7 @@ impl Log {
 enum Role {
     Follower,
     Candidate,
-    Leader
+    Leader,
 }
 
 // A single Raft peer.
@@ -198,7 +198,7 @@ pub struct Raft {
     /// leader 发送committed 信息
     apply_ch: UnboundedSender<ApplyMsg>,
 
-    weak: Weak<Mutex<Self>>
+    weak: Weak<Mutex<Self>>,
 }
 
 impl Raft {
@@ -221,7 +221,7 @@ impl Raft {
         peers: Vec<RaftClient>,
         me: usize,
         persister: Box<dyn Persister>,
-        apply_ch: UnboundedSender<ApplyMsg>
+        apply_ch: UnboundedSender<ApplyMsg>,
     ) -> Raft {
         let raft_state = persister.raft_state();
 
@@ -244,7 +244,7 @@ impl Raft {
 
             apply_ch,
             // pool: ThreadPool::clone(&THREAD_POOL),
-            weak: Weak::new()
+            weak: Weak::new(),
         };
         if raft_state.is_empty() {
             return rf;
@@ -278,16 +278,13 @@ impl Raft {
                         let role = Role::Follower;
                         // term更新后就可以退出
                         // 切换成功了,role不是Follower就退出
-                        if raft.current_term > current_term
-                            || role == Role::Candidate && raft.role != role
-                        {
+                        if raft.current_term > current_term || raft.role != role {
                             return;
                         }
-                        assert!(raft.role == role);
                         raft
                     };
                     let elapsed = raft.last_sign.elapsed();
-                    // 选举超时后进入candidate,开始选票
+                    // 选举超时后进入candidate, 开始选票
                     if elapsed > election_timeout {
                         raft.transfer(current_term + 1, Role::Candidate);
                         return;
@@ -309,7 +306,7 @@ impl Raft {
 
         type Rpc = Pin<Box<dyn Future<Output = labrpc::Result<RequestVoteReply>> + Send>>;
         struct Guard {
-            inner: FuturesUnordered<Rpc>
+            inner: FuturesUnordered<Rpc>,
         }
 
         impl Drop for Guard {
@@ -322,15 +319,13 @@ impl Raft {
             term:           self.current_term,
             candidate_id:   self.me as u64,
             last_log_term:  self.log.last().term,
-            last_log_index: self.log.len() - 1
+            last_log_index: self.log.len() - 1,
         };
         let rpcs = self
             .other_peers()
             .map(|(_, peer)| peer.request_vote(&args))
             .collect();
-        let mut rpcs = Guard {
-            inner: rpcs
-        };
+        let mut rpcs = Guard { inner: rpcs };
         let weak = Weak::clone(&self.weak);
         let current_term = self.current_term;
         THREAD_POOL.spawn_ok(async move {
@@ -342,22 +337,21 @@ impl Raft {
                 else {
                     return;
                 };
-                let mut rpc = rpcs.inner.select_next_some();
+                let mut rpc = rpcs
+                    .inner
+                    .select_next_some()
+                    .fuse();
                 let reply = futures::select! {
                     reply = rpc => Some(reply),
-                    _ = election_timer =>None,
+                    _ = election_timer => None,
                 };
                 if reply.is_none() {
                     {
                         let mut raft = raft.lock().unwrap();
                         assert!(raft.current_term >= current_term);
-                        let role = Role::Candidate;
-                        if raft.current_term > current_term
-                            || role == Role::Candidate && raft.role != role
-                        {
+                        if raft.current_term > current_term || raft.role != Role::Candidate {
                             return;
                         }
-                        assert!(raft.role == role);
                         raft.transfer(current_term + 1, Role::Candidate);
                     }
                     return;
@@ -365,7 +359,7 @@ impl Raft {
                 let reply = {
                     let reply = match reply.unwrap() {
                         Ok(reply) => reply,
-                        Err(_) => continue
+                        Err(_) => continue,
                     };
                     assert!(reply.term >= current_term);
                     if reply.term < current_term {
@@ -373,12 +367,9 @@ impl Raft {
                             let mut raft = raft.lock().unwrap();
                             assert!(raft.current_term >= current_term);
                             let role = Role::Candidate;
-                            if raft.current_term > current_term
-                                || role == Role::Candidate && raft.role != role
-                            {
+                            if raft.current_term > current_term || raft.role != role {
                                 return;
                             }
-                            assert!(raft.role == role);
                             raft.transfer(reply.term, Role::Follower);
                             return;
                         }
@@ -396,12 +387,9 @@ impl Raft {
                     let mut raft = raft.lock().unwrap();
                     assert!(raft.current_term >= current_term);
                     let role = Role::Candidate;
-                    if raft.current_term > current_term
-                        || role == Role::Candidate && raft.role != role
-                    {
+                    if raft.current_term > current_term || raft.role != role {
                         return;
                     }
-                    assert!(raft.role == role);
                     raft.transfer(current_term, Role::Leader);
                 }
                 return;
@@ -416,12 +404,12 @@ impl Raft {
 
         struct State {
             next_index:  Vec<u64>,
-            match_index: Vec<u64>
+            match_index: Vec<u64>,
         }
 
         let state = Arc::new(Mutex::new(State {
             next_index:  vec![self.log.len(); total],
-            match_index: vec![0; total]
+            match_index: vec![0; total],
         }));
         let major_index = (total + 1) / 2;
         self.other_peers()
@@ -454,7 +442,6 @@ impl Raft {
                                 {
                                     return;
                                 }
-                                assert!(raft.role == role);
                                 raft
                             };
                             let next_index = state.lock().unwrap().next_index[id];
@@ -513,12 +500,10 @@ impl Raft {
                                         let mut raft = raft.lock().unwrap();
                                         assert!(raft.current_term >= cur_term);
                                         let role = Role::Leader;
-                                        if raft.current_term > cur_term
-                                            || role == Role::Candidate && raft.role != role
+                                        if raft.current_term > cur_term ||  raft.role != role
                                         {
                                             return;
                                         }
-                                        assert!(raft.role == role);
                                         raft.transfer(reply.term, Role::Follower);
                                         return;
                                     }
@@ -564,7 +549,6 @@ impl Raft {
                                     {
                                         return;
                                     }
-                                    assert!(raft.role == role);
                                     raft.transfer(reply.term, Role::Follower);
                                     return;
                                 }
@@ -581,7 +565,6 @@ impl Raft {
                                 {
                                     return;
                                 }
-                                assert!(raft.role == role);
                                 raft
                             };
                             let mut state = state.lock().unwrap();
@@ -632,7 +615,7 @@ impl Raft {
                         .data
                         .clone(),
 
-                    index: i
+                    index: i,
                 });
         });
 
@@ -679,7 +662,7 @@ impl Raft {
                 self.log = o.log.unwrap_or_default();
                 self.voted_for = o.voted_for.map(|v| v as usize);
             },
-            Err(e) => panic!("{:?}", e)
+            Err(e) => panic!("{:?}", e),
         }
     }
 
@@ -703,7 +686,7 @@ impl Raft {
     fn send_request_vote(
         &self,
         server: usize,
-        args: RequestVoteArgs
+        args: RequestVoteArgs,
     ) -> Receiver<Result<RequestVoteReply>> {
         // Your code here if you want the rpc becomes async.
         // Example:
@@ -723,7 +706,7 @@ impl Raft {
 
     fn start<M>(&self, command: &M) -> Result<(u64, u64)>
     where
-        M: labcodec::Message
+        M: labcodec::Message,
     {
         let index = 0;
         let term = 0;
@@ -744,7 +727,7 @@ impl Raft {
         &mut self,
         last_included_term: u64,
         last_included_index: u64,
-        snapshot: &[u8]
+        snapshot: &[u8],
     ) -> bool {
         // Your code here (2D).
         crate::your_code_here((last_included_term, last_included_index, snapshot));
@@ -755,11 +738,7 @@ impl Raft {
         // assert!(index > self.commit_index);
         _ = self
             .apply_ch
-            .unbounded_send(ApplyMsg::Snapshot {
-                data: snapshot,
-                term,
-                index
-            });
+            .unbounded_send(ApplyMsg::Snapshot { data: snapshot, term, index });
 
         self.commit_index = index;
         self.last_applied = index;
@@ -776,7 +755,7 @@ impl Raft {
         match self.role {
             Role::Follower => self.spawn_follower_daemon(),
             Role::Candidate => self.spawn_candidate_daemon(),
-            Role::Leader => self.spawn_leader_daemon()
+            Role::Leader => self.spawn_leader_daemon(),
         }
 
         self.persist();
@@ -786,7 +765,7 @@ impl Raft {
             current_term: self.current_term,
             voted_for:    self.voted_for.map(|id| id as u64),
 
-            log: Some(self.log.clone())
+            log: Some(self.log.clone()),
         };
 
         let mut state = Vec::new();
@@ -838,7 +817,7 @@ impl Raft {
 // rust // struct Node { sender: Sender<Msg> } //
 #[derive(Clone)]
 pub struct Node {
-    raft: Arc<Mutex<Raft>>
+    raft: Arc<Mutex<Raft>>,
 }
 
 impl Node {
@@ -851,9 +830,7 @@ impl Node {
             inner.weak = Arc::downgrade(&raft);
             inner.spawn_follower_daemon();
         } // 提前drop inner
-        Self {
-            raft
-        }
+        Self { raft }
     }
 
     /// the service using Raft (e.g. a k/v server) wants to start
@@ -879,7 +856,7 @@ impl Node {
     /// 此方法必须在不阻塞Raft的情况下返回。
     pub fn start<M>(&self, command: &M) -> Result<(u64, u64)>
     where
-        M: labcodec::Message
+        M: labcodec::Message,
     {
         // Your code here.
         // Example:
@@ -922,7 +899,7 @@ impl Node {
     pub fn get_state(&self) -> State {
         State {
             term:      self.term(),
-            is_leader: self.is_leader()
+            is_leader: self.is_leader(),
         }
     }
 
@@ -950,7 +927,7 @@ impl Node {
         &self,
         _last_included_term: u64,
         _last_included_index: u64,
-        _snapshot: &[u8]
+        _snapshot: &[u8],
     ) -> bool {
         // Your code here.
         // Example:
@@ -1020,26 +997,23 @@ impl RaftService for Node {
     /// 领导调用，复制日志
     async fn append_entries(
         &self,
-        mut args: AppendEntriesArgs
+        mut args: AppendEntriesArgs,
     ) -> labrpc::Result<AppendEntriesReply> {
         let mut raft = self.raft.lock().unwrap();
         {
-            {
+            if args.term < raft.current_term {
                 let reply = AppendEntriesReply::new(raft.current_term, false, 0, 0);
-                assert!(reply.term == raft.current_term);
-                if args.term < raft.current_term {
-                    return Ok(reply);
-                }
-                if args.term > raft.current_term {
-                    raft.transfer(args.term, Role::Follower);
-                }
-            };
+                return Ok(reply);
+            }
+            if args.term > raft.current_term {
+                raft.transfer(args.term, Role::Follower);
+            }
 
             assert!(raft.role != Role::Leader);
             match raft.role {
                 // 收到心跳，重置起始时间
                 Role::Follower => raft.last_sign = Instant::now(),
-                _ => raft.transfer(args.term, Role::Follower)
+                _ => raft.transfer(args.term, Role::Follower),
             }
         };
         let len = raft.log.len();
@@ -1058,7 +1032,7 @@ impl RaftService for Node {
                 raft.current_term,
                 false,
                 term,
-                last_without + 1
+                last_without + 1,
             ));
         }
 
@@ -1088,7 +1062,7 @@ impl RaftService for Node {
     }
     async fn install_snapshot(
         &self,
-        args: InstallSnapshotArgs
+        args: InstallSnapshotArgs,
     ) -> labrpc::Result<InstallSnapshotReply> {
         let mut raft = self.raft.lock().unwrap();
         {
@@ -1137,7 +1111,7 @@ impl RaftService for Node {
         raft.snapshot(
             args.data.clone(),
             args.last_included_term,
-            args.last_included_index
+            args.last_included_index,
         );
         raft.persister
             .save_state_and_snapshot(raft.state(), args.data);
@@ -1146,17 +1120,12 @@ impl RaftService for Node {
 }
 impl RequestVoteReply {
     fn new(term: u64, vote_granted: bool) -> Self {
-        Self {
-            term,
-            vote_granted
-        }
+        Self { term, vote_granted }
     }
 }
 impl InstallSnapshotReply {
     fn new(term: u64) -> Self {
-        Self {
-            term
-        }
+        Self { term }
     }
 }
 impl AppendEntriesReply {
@@ -1165,15 +1134,12 @@ impl AppendEntriesReply {
             term,
             success,
             conflicting_term,
-            first_conflicted
+            first_conflicted,
         }
     }
 }
 impl LogEntry {
     fn new(data: Vec<u8>, term: u64) -> Self {
-        Self {
-            data,
-            term
-        }
+        Self { data, term }
     }
 }

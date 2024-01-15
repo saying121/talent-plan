@@ -11,7 +11,7 @@ pub use self::{
     client::{Client, Rpc, RpcHooks},
     error::{Error, Result},
     network::Network,
-    server::{Handler, HandlerFactory, RpcFuture, Server, ServerBuilder}
+    server::{Handler, HandlerFactory, RpcFuture, Server, ServerBuilder},
 };
 
 #[cfg(test)]
@@ -19,16 +19,16 @@ pub mod tests {
     use std::{
         sync::{
             atomic::{AtomicBool, Ordering},
-            mpsc, Arc, Mutex, Once
+            mpsc, Arc, Mutex, Once,
         },
         thread,
-        time::{Duration, Instant}
+        time::{Duration, Instant},
     };
 
     use futures::{
         channel::oneshot::Canceled,
         executor::{block_on, ThreadPool},
-        stream::StreamExt
+        stream::StreamExt,
     };
     use futures_timer::Delay;
     use prost_derive::Message;
@@ -50,27 +50,25 @@ pub mod tests {
     #[derive(Clone, PartialEq, Message)]
     pub struct JunkArgs {
         #[prost(int64, tag = "1")]
-        pub x: i64
+        pub x: i64,
     }
     #[derive(Clone, PartialEq, Message)]
     pub struct JunkReply {
         #[prost(string, tag = "1")]
-        pub x: String
+        pub x: String,
     }
 
     #[derive(Default)]
     struct JunkInner {
-        log2: Vec<i64>
+        log2: Vec<i64>,
     }
     #[derive(Clone)]
     struct JunkService {
-        inner: Arc<Mutex<JunkInner>>
+        inner: Arc<Mutex<JunkInner>>,
     }
     impl JunkService {
         fn new() -> JunkService {
-            JunkService {
-                inner: Arc::default()
-            }
+            JunkService { inner: Arc::default() }
         }
     }
     #[async_trait::async_trait]
@@ -81,20 +79,14 @@ pub mod tests {
                 .unwrap()
                 .log2
                 .push(args.x);
-            Ok(JunkReply {
-                x: format!("handler2-{}", args.x)
-            })
+            Ok(JunkReply { x: format!("handler2-{}", args.x) })
         }
         async fn handler3(&self, args: JunkArgs) -> Result<JunkReply> {
             Delay::new(Duration::from_secs(20)).await;
-            Ok(JunkReply {
-                x: format!("handler3-{}", -args.x)
-            })
+            Ok(JunkReply { x: format!("handler3-{}", -args.x) })
         }
         async fn handler4(&self, _: JunkArgs) -> Result<JunkReply> {
-            Ok(JunkReply {
-                x: "pointer".to_owned()
-            })
+            Ok(JunkReply { x: "pointer".to_owned() })
         }
     }
 
@@ -122,12 +114,7 @@ pub mod tests {
                 .unwrap()
         });
         let rsp = labcodec::decode(&buf).unwrap();
-        assert_eq!(
-            JunkReply {
-                x: "pointer".to_owned()
-            },
-            rsp,
-        );
+        assert_eq!(JunkReply { x: "pointer".to_owned() }, rsp,);
 
         block_on(async {
             server
@@ -164,21 +151,17 @@ pub mod tests {
         let cli = client.clone();
         client.spawn(async move {
             let reply = cli
-                .handler4(&JunkArgs {
-                    x: 777
-                })
+                .handler4(&JunkArgs { x: 777 })
                 .await;
             tx.send(reply).unwrap();
         });
         let (mut rpc, incoming) = block_on(async {
             match incoming.into_future().await {
                 (Some(rpc), s) => (rpc, s),
-                _ => panic!("unexpected error")
+                _ => panic!("unexpected error"),
             }
         });
-        let reply = JunkReply {
-            x: "boom!!!".to_owned()
-        };
+        let reply = JunkReply { x: "boom!!!".to_owned() };
         let mut buf = vec![];
         labcodec::encode(&reply, &mut buf).unwrap();
         let resp = rpc.take_resp_sender().unwrap();
@@ -196,16 +179,14 @@ pub mod tests {
         let cli = client.clone();
         client.spawn(async move {
             let reply = cli
-                .handler4(&JunkArgs {
-                    x: 777
-                })
+                .handler4(&JunkArgs { x: 777 })
                 .await;
             tx.send(reply).unwrap();
         });
         let (rpc, incoming) = block_on(async {
             match incoming.into_future().await {
                 (Some(rpc), s) => (rpc, s),
-                _ => panic!("unexpected error")
+                _ => panic!("unexpected error"),
             }
         });
         drop(rpc.resp);
@@ -249,12 +230,7 @@ pub mod tests {
                 .await
                 .unwrap()
         });
-        assert_eq!(
-            JunkReply {
-                x: "pointer".to_owned()
-            },
-            rsp,
-        );
+        assert_eq!(JunkReply { x: "pointer".to_owned() }, rsp,);
     }
 
     // does net.Enable(endname, false) really disconnect a client?
@@ -282,12 +258,7 @@ pub mod tests {
                 .unwrap()
         });
 
-        assert_eq!(
-            JunkReply {
-                x: "pointer".to_owned()
-            },
-            rsp,
-        );
+        assert_eq!(JunkReply { x: "pointer".to_owned() }, rsp,);
     }
 
     // test net.GetCount()
@@ -304,9 +275,7 @@ pub mod tests {
         for i in 0..=16 {
             let reply = block_on(async {
                 client
-                    .handler2(&JunkArgs {
-                        x: i
-                    })
+                    .handler2(&JunkArgs { x: i })
                     .await
                     .unwrap()
             });
@@ -344,9 +313,7 @@ pub mod tests {
                 for j in 0..nrpcs {
                     let x = (i * 100 + j) as i64;
                     let reply = client
-                        .handler2(&JunkArgs {
-                            x
-                        })
+                        .handler2(&JunkArgs { x })
                         .await
                         .unwrap();
                     assert_eq!(reply.x, format!("handler2-{}", x));
@@ -391,9 +358,7 @@ pub mod tests {
 
                 let x = i * 100;
                 if let Ok(reply) = client
-                    .handler2(&JunkArgs {
-                        x
-                    })
+                    .handler2(&JunkArgs { x })
                     .await
                 {
                     assert_eq!(reply.x, format!("handler2-{}", x));
@@ -436,9 +401,7 @@ pub mod tests {
                 let mut n = 0;
                 let x = i + 100;
                 let reply = client
-                    .handler2(&JunkArgs {
-                        x
-                    })
+                    .handler2(&JunkArgs { x })
                     .await
                     .unwrap();
                 assert_eq!(reply.x, format!("handler2-{}", x));
@@ -498,9 +461,7 @@ pub mod tests {
             pool.spawn_ok(async move {
                 let x = i + 100;
                 // this call ought to return false.
-                let _ = cli.handler2(&JunkArgs {
-                    x
-                });
+                let _ = cli.handler2(&JunkArgs { x });
                 sender.send(true).unwrap();
             });
         }
@@ -514,9 +475,7 @@ pub mod tests {
         let x = 99;
         let reply = block_on(async {
             client
-                .handler2(&JunkArgs {
-                    x
-                })
+                .handler2(&JunkArgs { x })
                 .await
                 .unwrap()
         });
@@ -566,9 +525,7 @@ pub mod tests {
         let cli = client.clone();
         client.spawn(async move {
             let reply = cli
-                .handler3(&JunkArgs {
-                    x: 99
-                })
+                .handler3(&JunkArgs { x: 99 })
                 .await;
             tx.send(reply).unwrap();
         });
@@ -585,7 +542,7 @@ pub mod tests {
 
     struct Hooks {
         drop_req:  AtomicBool,
-        drop_resp: AtomicBool
+        drop_resp: AtomicBool,
     }
     impl RpcHooks for Hooks {
         fn before_dispatch(&self, _: &str, _: &[u8]) -> Result<()> {
@@ -620,7 +577,7 @@ pub mod tests {
         let raw_cli = net.create_client("test_client".to_owned());
         let hook = Arc::new(Hooks {
             drop_req:  AtomicBool::new(false),
-            drop_resp: AtomicBool::new(false)
+            drop_resp: AtomicBool::new(false),
         });
         raw_cli.set_hooks(hook.clone());
 
@@ -631,9 +588,7 @@ pub mod tests {
         let i = 100;
         let reply = block_on(async {
             client
-                .handler2(&JunkArgs {
-                    x: i
-                })
+                .handler2(&JunkArgs { x: i })
                 .await
                 .unwrap()
         });
@@ -643,9 +598,7 @@ pub mod tests {
         assert_eq!(
             block_on(async {
                 client
-                    .handler2(&JunkArgs {
-                        x: i
-                    })
+                    .handler2(&JunkArgs { x: i })
                     .await
                     .unwrap_err()
             }),
@@ -658,9 +611,7 @@ pub mod tests {
         assert_eq!(
             block_on(async {
                 client
-                    .handler2(&JunkArgs {
-                        x: i
-                    })
+                    .handler2(&JunkArgs { x: i })
                     .await
                     .unwrap_err()
             }),
@@ -670,9 +621,7 @@ pub mod tests {
             .store(false, Ordering::Relaxed);
         block_on(async {
             client
-                .handler2(&JunkArgs {
-                    x: i
-                })
+                .handler2(&JunkArgs { x: i })
                 .await
                 .unwrap()
         });

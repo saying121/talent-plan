@@ -1,10 +1,10 @@
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc
+        Arc,
     },
     thread,
-    time::Duration
+    time::Duration,
 };
 
 use labrpc::*;
@@ -13,13 +13,13 @@ use prost::Message;
 use crate::{
     client::Client,
     server::{MemoryStorage, TimestampOracle},
-    service::{add_transaction_service, add_tso_service, TSOClient, TransactionClient}
+    service::{add_transaction_service, add_tso_service, TSOClient, TransactionClient},
 };
 
 struct CommitHooks {
     drop_req:     AtomicBool,
     drop_resp:    AtomicBool,
-    fail_primary: AtomicBool
+    fail_primary: AtomicBool,
 }
 
 impl RpcHooks for CommitHooks {
@@ -79,7 +79,7 @@ fn init(num_clinet: usize) -> (Network, Vec<Client>, Arc<CommitHooks>) {
     let hook = Arc::new(CommitHooks {
         drop_req:     AtomicBool::new(false),
         drop_resp:    AtomicBool::new(false),
-        fail_primary: AtomicBool::new(false)
+        fail_primary: AtomicBool::new(false),
     });
     for i in 0..num_clinet {
         let txn_name_string = format!("txn{}", i);

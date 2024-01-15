@@ -2,9 +2,9 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicUsize, Ordering},
-        Arc, Mutex
+        Arc, Mutex,
     },
-    time::{Duration, Instant}
+    time::{Duration, Instant},
 };
 
 use rand::seq::SliceRandom;
@@ -13,11 +13,11 @@ use crate::{
     kvraft::{
         client,
         errors::{Error, Result},
-        server
+        server,
     },
     proto::{kvraftpb::*, raftpb::*},
     raft,
-    raft::persister::*
+    raft::persister::*,
 };
 
 static ID: AtomicUsize = AtomicUsize::new(300_000);
@@ -29,7 +29,7 @@ fn uniqstring() -> String {
 struct Servers {
     kvservers: Vec<Option<server::Node>>,
     saved:     Vec<Arc<SimplePersister>>,
-    endnames:  Vec<Vec<String>>
+    endnames:  Vec<Vec<String>>,
 }
 
 fn init_logger() {
@@ -55,7 +55,7 @@ pub struct Config {
     // rpc_total() at start of test
     rpcs0: AtomicUsize,
     // number of agreements
-    ops:   AtomicUsize
+    ops:   AtomicUsize,
 }
 
 impl Config {
@@ -67,7 +67,7 @@ impl Config {
             saved:     (0..n)
                 .map(|_| Arc::new(SimplePersister::new()))
                 .collect(),
-            endnames:  vec![vec![String::new(); n]; n]
+            endnames:  vec![vec![String::new(); n]; n],
         };
         let cfg = Config {
             n,
@@ -80,7 +80,7 @@ impl Config {
             start: Instant::now(),
             t0: Mutex::new(Instant::now()),
             rpcs0: AtomicUsize::new(0),
-            ops: AtomicUsize::new(0)
+            ops: AtomicUsize::new(0),
         };
 
         // create a full set of KV servers.

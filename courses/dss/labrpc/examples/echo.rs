@@ -6,7 +6,7 @@ use prost_derive::Message;
 #[derive(Clone, PartialEq, Message)]
 pub struct Echo {
     #[prost(int64, tag = "1")]
-    pub x: i64
+    pub x: i64,
 }
 
 service! {
@@ -41,17 +41,10 @@ fn main() {
 
     let reply = block_on(async {
         client
-            .ping(&Echo {
-                x: 777
-            })
+            .ping(&Echo { x: 777 })
             .await
             .unwrap()
     });
-    assert_eq!(
-        reply,
-        Echo {
-            x: 777
-        }
-    );
+    assert_eq!(reply, Echo { x: 777 });
     println!("{:?}", reply);
 }

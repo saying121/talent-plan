@@ -63,7 +63,7 @@ mod tests {
             r#type: fixture::msg::Type::Put as _,
             id:     42,
             name:   "the answer".to_owned(),
-            paylad: vec![vec![7; 3]; 2]
+            paylad: vec![vec![7; 3]; 2],
         };
         let mut buf = vec![];
         encode(&msg, &mut buf).unwrap();

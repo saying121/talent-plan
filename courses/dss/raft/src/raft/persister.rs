@@ -48,15 +48,13 @@ impl<T: ?Sized + Sync + Persister> Persister for Arc<T> {
 pub struct SimplePersister {
     states: Mutex<(
         Vec<u8>, // raft state
-        Vec<u8>  // snapshot
-    )>
+        Vec<u8>, // snapshot
+    )>,
 }
 
 impl SimplePersister {
     pub fn new() -> SimplePersister {
-        SimplePersister {
-            states: Mutex::default()
-        }
+        SimplePersister { states: Mutex::default() }
     }
 }
 

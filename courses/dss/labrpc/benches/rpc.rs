@@ -18,28 +18,26 @@ use bench::{add_service, Client as BenchClient, Service};
 #[derive(Clone, PartialEq, Message)]
 pub struct BenchArgs {
     #[prost(int64, tag = "1")]
-    pub x: i64
+    pub x: i64,
 }
 
 #[derive(Clone, PartialEq, Message)]
 pub struct BenchReply {
     #[prost(string, tag = "1")]
-    pub x: String
+    pub x: String,
 }
 
 #[derive(Default)]
 struct BenchInner {
-    log2: Vec<i64>
+    log2: Vec<i64>,
 }
 #[derive(Clone)]
 pub struct BenchService {
-    inner: Arc<Mutex<BenchInner>>
+    inner: Arc<Mutex<BenchInner>>,
 }
 impl BenchService {
     fn new() -> BenchService {
-        BenchService {
-            inner: Arc::default()
-        }
+        BenchService { inner: Arc::default() }
     }
 }
 
@@ -51,9 +49,7 @@ impl Service for BenchService {
             .unwrap()
             .log2
             .push(args.x);
-        Ok(BenchReply {
-            x: format!("handler-{}", args.x)
-        })
+        Ok(BenchReply { x: format!("handler-{}", args.x) })
     }
 }
 
@@ -80,9 +76,7 @@ fn bench_rpc(c: &mut Criterion) {
         b.iter(|| {
             black_box(block_on(async {
                 client
-                    .handler(&BenchArgs {
-                        x: 111
-                    })
+                    .handler(&BenchArgs { x: 111 })
                     .await
                     .unwrap()
             }));

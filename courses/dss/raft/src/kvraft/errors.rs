@@ -2,7 +2,7 @@ use std::{error, fmt, result};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Error {
-    NoLeader
+    NoLeader,
 }
 
 impl fmt::Display for Error {
@@ -14,7 +14,7 @@ impl fmt::Display for Error {
 impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match *self {
-            Error::NoLeader => None
+            Error::NoLeader => None,
         }
     }
 }

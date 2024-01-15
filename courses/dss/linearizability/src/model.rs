@@ -1,14 +1,14 @@
 use std::{
     cmp::PartialEq,
     fmt::{Debug, Display},
-    marker::Send
+    marker::Send,
 };
 
 #[derive(Debug)]
 pub enum Value<I: Debug, O: Debug> {
     Input(I),
     Output(O),
-    None
+    None,
 }
 
 impl<I: Debug, O: Debug> Value<I, O> {
@@ -36,18 +36,18 @@ pub struct Operation<I: Debug, O: Debug> {
     pub input:  I,
     pub call:   i64, // invocation time
     pub output: O,
-    pub finish: i64 // response time
+    pub finish: i64, // response time
 }
 
 pub enum EventKind {
     CallEvent,
-    ReturnEvent
+    ReturnEvent,
 }
 
 pub struct Event<T> {
     pub kind:  EventKind,
     pub value: T,
-    pub id:    usize
+    pub id:    usize,
 }
 
 pub type Operations<I, O> = Vec<Operation<I, O>>;
@@ -64,14 +64,14 @@ pub trait Model: Clone + Send + 'static {
     // below.
     fn partition(
         &self,
-        history: Operations<Self::Input, Self::Output>
+        history: Operations<Self::Input, Self::Output>,
     ) -> Vec<Operations<Self::Input, Self::Output>> {
         vec![history]
     }
 
     fn partition_event(
         &self,
-        history: Events<Self::Input, Self::Output>
+        history: Events<Self::Input, Self::Output>,
     ) -> Vec<Events<Self::Input, Self::Output>> {
         vec![history]
     }
@@ -86,7 +86,7 @@ pub trait Model: Clone + Send + 'static {
         &self,
         state: &Self::State,
         input: &Self::Input,
-        output: &Self::Output
+        output: &Self::Output,
     ) -> (bool, Self::State);
 
     // Equality on states. If you are using a simple data type for states,

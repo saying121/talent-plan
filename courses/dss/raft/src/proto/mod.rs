@@ -12,7 +12,7 @@ pub mod raftpb {
         }
     }
     pub use self::raft::{
-        add_service as add_raft_service, Client as RaftClient, Service as RaftService
+        add_service as add_raft_service, Client as RaftClient, Service as RaftService,
     };
 }
 

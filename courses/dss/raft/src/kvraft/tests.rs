@@ -1,11 +1,11 @@
 use std::{
     sync::{
         atomic::{AtomicUsize, Ordering},
-        mpsc, Arc, Mutex
+        mpsc, Arc, Mutex,
     },
     task::Poll,
     thread,
-    time::{Duration, Instant}
+    time::{Duration, Instant},
 };
 
 use futures::{channel::oneshot, executor::block_on, future, Future, FutureExt};
@@ -13,7 +13,7 @@ use futures_timer::Delay;
 use linearizability::{
     check_operations_timeout,
     model::Operation,
-    models::{KvInput, KvModel, KvOutput, Op}
+    models::{KvInput, KvModel, KvOutput, Op},
 };
 use rand::{seq::SliceRandom, Rng};
 
@@ -53,11 +53,11 @@ fn check(cfg: &Config, ck: &Clerk, key: &str, value: &str) {
 fn spawn_clients_and_wait<Func, Fact>(
     cfg: Arc<Config>,
     ncli: usize,
-    fact: Fact
+    fact: Fact,
 ) -> impl Future<Output = ()> + Send + 'static
 where
     Fact: Fn() -> Func + Send + 'static,
-    Func: Fn(usize, &Clerk) + Send + 'static
+    Func: Fn(usize, &Clerk) + Send + 'static,
 {
     let mut cas = Vec::with_capacity(ncli);
     for cli in 0..ncli {
@@ -149,7 +149,7 @@ fn check_concurrent_appends(v: String, counts: &[usize]) {
 fn partitioner(
     cfg: Arc<Config>,
     ch: mpsc::Sender<bool>,
-    done: Arc<AtomicUsize>
+    done: Arc<AtomicUsize>,
 ) -> impl Future<Output = ()> + Send + 'static {
     fn delay(r: u64) -> Delay {
         Delay::new(RAFT_ELECTION_TIMEOUT + Duration::from_millis(r % 200))
@@ -193,7 +193,7 @@ fn generic_test(
     unreliable: bool,
     crash: bool,
     partitions: bool,
-    maxraftstate: Option<usize>
+    maxraftstate: Option<usize>,
 ) {
     let mut title = "Test: ".to_owned();
     if unreliable {
@@ -288,7 +288,7 @@ fn generic_test(
             cfg.net.spawn_poller(partitioner(
                 cfg.clone(),
                 partitioner_tx,
-                done_partitioner.clone()
+                done_partitioner.clone(),
             ));
         }
         thread::sleep(Duration::from_secs(5));
@@ -366,7 +366,7 @@ fn generic_test_linearizability(
     unreliable: bool,
     crash: bool,
     partitions: bool,
-    maxraftstate: Option<usize>
+    maxraftstate: Option<usize>,
 ) {
     let mut title = "Test: ".to_owned();
     if unreliable {
@@ -436,28 +436,16 @@ fn generic_test_linearizability(
                             append(&cfg1, myck, &key, &nv);
                             j += 1;
                             (
-                                KvInput {
-                                    op: Op::Append,
-                                    key,
-                                    value: nv
-                                },
-                                KvOutput {
-                                    value: "".to_string()
-                                }
+                                KvInput { op: Op::Append, key, value: nv },
+                                KvOutput { value: "".to_string() },
                             )
                         }
                         else if rng.gen::<usize>() % 1000 < 100 {
                             put(&cfg1, myck, &key, &nv);
                             j += 1;
                             (
-                                KvInput {
-                                    op: Op::Put,
-                                    key,
-                                    value: nv
-                                },
-                                KvOutput {
-                                    value: "".to_string()
-                                }
+                                KvInput { op: Op::Put, key, value: nv },
+                                KvOutput { value: "".to_string() },
                             )
                         }
                         else {
@@ -466,11 +454,9 @@ fn generic_test_linearizability(
                                 KvInput {
                                     op: Op::Get,
                                     key,
-                                    value: "".to_string()
+                                    value: "".to_string(),
                                 },
-                                KvOutput {
-                                    value: v
-                                }
+                                KvOutput { value: v },
                             )
                         };
 
@@ -479,7 +465,7 @@ fn generic_test_linearizability(
                             input:  inp,
                             call:   start,
                             output: out,
-                            finish: end
+                            finish: end,
                         };
                         let mut data = operations1.lock().unwrap();
                         data.push(op);
@@ -494,7 +480,7 @@ fn generic_test_linearizability(
             cfg.net.spawn_poller(partitioner(
                 cfg.clone(),
                 partitioner_tx,
-                done_partitioner.clone()
+                done_partitioner.clone(),
             ));
         }
         thread::sleep(Duration::from_secs(5));
@@ -559,7 +545,7 @@ fn generic_test_linearizability(
             .unwrap()
             .into_inner()
             .unwrap(),
-        LINEARIZABILITY_CHECK_TIMEOUT
+        LINEARIZABILITY_CHECK_TIMEOUT,
     ) {
         panic!("history is not linearizable");
     }
@@ -698,8 +684,8 @@ fn test_one_partition_3a() {
             },
             future::Either::Right((future::Either::Right((op, _)), _)) => {
                 panic!("{} in minority completed", op.unwrap())
-            }
-        })
+            },
+        }),
     );
 
     check(&cfg, &ckp1, "1", "14");
@@ -728,7 +714,7 @@ fn test_one_partition_3a() {
                 future::Either::Right((future::Either::Right((op, next)), timeout)) => {
                     info!("{} completes", op.unwrap());
                     (timeout, future::Either::Right(next))
-                }
+                },
             })
             .await
     });
@@ -737,7 +723,7 @@ fn test_one_partition_3a() {
         future::select(timeout, next)
             .map(|res| match res {
                 future::Either::Left(_) => panic!("put/get did not complete"),
-                future::Either::Right((op, _)) => info!("{} completes", op.unwrap())
+                future::Either::Right((op, _)) => info!("{} completes", op.unwrap()),
             })
             .await
     });

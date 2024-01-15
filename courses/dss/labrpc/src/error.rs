@@ -11,7 +11,7 @@ pub enum Error {
     Recv(Canceled),
     Timeout,
     Stopped,
-    Other(String)
+    Other(String),
 }
 
 impl fmt::Display for Error {
@@ -26,7 +26,7 @@ impl error::Error for Error {
             Error::Encode(ref e) => Some(e),
             Error::Decode(ref e) => Some(e),
             Error::Recv(ref e) => Some(e),
-            _ => None
+            _ => None,
         }
     }
 }

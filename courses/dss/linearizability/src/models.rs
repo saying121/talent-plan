@@ -6,19 +6,19 @@ use super::model::{EventKind, Events, Model, Operations};
 pub enum Op {
     Get,
     Put,
-    Append
+    Append,
 }
 
 #[derive(Clone, Debug)]
 pub struct KvInput {
     pub op:    Op,
     pub key:   String,
-    pub value: String
+    pub value: String,
 }
 
 #[derive(Clone, Debug)]
 pub struct KvOutput {
-    pub value: String
+    pub value: String,
 }
 
 #[derive(Clone, Default)]
@@ -31,7 +31,7 @@ impl Model for KvModel {
 
     fn partition(
         &self,
-        history: Operations<Self::Input, Self::Output>
+        history: Operations<Self::Input, Self::Output>,
     ) -> Vec<Operations<Self::Input, Self::Output>> {
         let mut map = HashMap::new();
         for op in history {
@@ -49,7 +49,7 @@ impl Model for KvModel {
 
     fn partition_event(
         &self,
-        history: Events<Self::Input, Self::Output>
+        history: Events<Self::Input, Self::Output>,
     ) -> Vec<Events<Self::Input, Self::Output>> {
         let mut m = HashMap::new();
         let mut matched: HashMap<usize, String> = HashMap::new();
@@ -67,7 +67,7 @@ impl Model for KvModel {
                     m.entry(key)
                         .or_insert_with(Vec::new)
                         .push(event);
-                }
+                },
             }
         }
         let mut ret = vec![];
@@ -87,12 +87,12 @@ impl Model for KvModel {
         &self,
         state: &Self::State,
         input: &Self::Input,
-        output: &Self::Output
+        output: &Self::Output,
     ) -> (bool, Self::State) {
         match input.op {
             Op::Get => (&output.value == state, state.clone()),
             Op::Put => (true, input.value.clone()),
-            Op::Append => (true, state.clone() + &input.value)
+            Op::Append => (true, state.clone() + &input.value),
         }
     }
 }
@@ -102,7 +102,7 @@ mod tests {
     use std::{
         collections::HashMap,
         fs::File,
-        io::{BufRead, BufReader, Result}
+        io::{BufRead, BufReader, Result},
     };
 
     use regex::Regex;
@@ -116,13 +116,13 @@ mod tests {
         let file_name = format!("../linearizability/test_data/{}.txt", &log_name);
         let events = match parse_kv_log(&file_name) {
             Ok(events) => events,
-            Err(e) => panic!("parse kv log {} failed: {}", &file_name, e)
+            Err(e) => panic!("parse kv log {} failed: {}", &file_name, e),
         };
         assert_eq!(check_events(model, events), correct);
     }
 
     fn parse_kv_log(
-        file_name: &str
+        file_name: &str,
     ) -> Result<Events<<KvModel as Model>::Input, <KvModel as Model>::Output>> {
         lazy_static::lazy_static! {
             static ref INVOKE_GET: Regex = Regex::new(
@@ -162,16 +162,16 @@ mod tests {
                     value: Value::Input(KvInput {
                         op:    Op::Get,
                         key:   args[2].to_string(),
-                        value: "".to_string()
+                        value: "".to_string(),
                     }),
-                    id
+                    id,
                 });
                 procid_map.insert(
                     args[1]
                         .to_string()
                         .parse()
                         .unwrap(),
-                    id
+                    id,
                 );
                 id += 1;
             }
@@ -181,16 +181,16 @@ mod tests {
                     value: Value::Input(KvInput {
                         op:    Op::Put,
                         key:   args[2].to_string(),
-                        value: args[3].to_string()
+                        value: args[3].to_string(),
                     }),
-                    id
+                    id,
                 });
                 procid_map.insert(
                     args[1]
                         .to_string()
                         .parse()
                         .unwrap(),
-                    id
+                    id,
                 );
                 id += 1;
             }
@@ -200,16 +200,16 @@ mod tests {
                     value: Value::Input(KvInput {
                         op:    Op::Append,
                         key:   args[2].to_string(),
-                        value: args[3].to_string()
+                        value: args[3].to_string(),
                     }),
-                    id
+                    id,
                 });
                 procid_map.insert(
                     args[1]
                         .to_string()
                         .parse()
                         .unwrap(),
-                    id
+                    id,
                 );
                 id += 1;
             }
@@ -219,15 +219,13 @@ mod tests {
                         &args[1]
                             .to_string()
                             .parse()
-                            .unwrap()
+                            .unwrap(),
                     )
                     .unwrap();
                 events.push(Event {
                     kind:  EventKind::ReturnEvent,
-                    value: Value::Output(KvOutput {
-                        value: args[2].to_string()
-                    }),
-                    id:    match_id
+                    value: Value::Output(KvOutput { value: args[2].to_string() }),
+                    id:    match_id,
                 });
             }
             else if let Some(args) = RETURN_PUT.captures(&contents) {
@@ -236,15 +234,13 @@ mod tests {
                         &args[1]
                             .to_string()
                             .parse()
-                            .unwrap()
+                            .unwrap(),
                     )
                     .unwrap();
                 events.push(Event {
                     kind:  EventKind::ReturnEvent,
-                    value: Value::Output(KvOutput {
-                        value: "".to_string()
-                    }),
-                    id:    match_id
+                    value: Value::Output(KvOutput { value: "".to_string() }),
+                    id:    match_id,
                 });
             }
             else if let Some(args) = RETURN_APPEND.captures(&contents) {
@@ -253,15 +249,13 @@ mod tests {
                         &args[1]
                             .to_string()
                             .parse()
-                            .unwrap()
+                            .unwrap(),
                     )
                     .unwrap();
                 events.push(Event {
                     kind:  EventKind::ReturnEvent,
-                    value: Value::Output(KvOutput {
-                        value: "".to_string()
-                    }),
-                    id:    match_id
+                    value: Value::Output(KvOutput { value: "".to_string() }),
+                    id:    match_id,
                 });
             }
             else {
@@ -272,10 +266,8 @@ mod tests {
         for (_, match_id) in procid_map {
             events.push(Event {
                 kind:  EventKind::ReturnEvent,
-                value: Value::Output(KvOutput {
-                    value: "".to_string()
-                }),
-                id:    match_id
+                value: Value::Output(KvOutput { value: "".to_string() }),
+                id:    match_id,
             })
         }
         Ok(events)

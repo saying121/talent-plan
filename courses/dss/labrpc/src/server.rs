@@ -3,8 +3,8 @@ use std::{
     fmt,
     sync::{
         atomic::{AtomicUsize, Ordering},
-        Arc
-    }
+        Arc,
+    },
 };
 
 use futures::future::{self, BoxFuture};
@@ -24,21 +24,18 @@ pub trait HandlerFactory: Sync + Send + 'static {
 pub struct ServerBuilder {
     name:                String,
     // Service name -> service methods
-    pub(crate) services: HashMap<&'static str, Box<dyn HandlerFactory>>
+    pub(crate) services: HashMap<&'static str, Box<dyn HandlerFactory>>,
 }
 
 impl ServerBuilder {
     pub fn new(name: String) -> ServerBuilder {
-        ServerBuilder {
-            name,
-            services: HashMap::new()
-        }
+        ServerBuilder { name, services: HashMap::new() }
     }
 
     pub fn add_service(
         &mut self,
         service_name: &'static str,
-        factory: Box<dyn HandlerFactory>
+        factory: Box<dyn HandlerFactory>,
     ) -> Result<()> {
         match self.services.entry(service_name) {
             Entry::Occupied(_) => Err(Error::Other(format!(
@@ -48,7 +45,7 @@ impl ServerBuilder {
             Entry::Vacant(entry) => {
                 entry.insert(factory);
                 Ok(())
-            }
+            },
         }
     }
 
@@ -58,8 +55,8 @@ impl ServerBuilder {
                 name:     self.name,
                 services: self.services,
                 id:       ID_ALLOC.fetch_add(1, Ordering::Relaxed),
-                count:    AtomicUsize::new(0)
-            })
+                count:    AtomicUsize::new(0),
+            }),
         }
     }
 }
@@ -69,12 +66,12 @@ pub(crate) struct ServerCore {
     pub(crate) id:   usize,
 
     pub(crate) services: HashMap<&'static str, Box<dyn HandlerFactory>>,
-    pub(crate) count:    AtomicUsize
+    pub(crate) count:    AtomicUsize,
 }
 
 #[derive(Clone)]
 pub struct Server {
-    pub(crate) core: Arc<ServerCore>
+    pub(crate) core: Arc<ServerCore>,
 }
 
 impl Server {
@@ -100,7 +97,7 @@ impl Server {
                     "unknown {}",
                     fq_name
                 ))));
-            }
+            },
         };
         let method_name = match names.next() {
             Some(n) => n,
@@ -109,7 +106,7 @@ impl Server {
                     "unknown {}",
                     fq_name
                 ))));
-            }
+            },
         };
         if let Some(factory) = self
             .core

@@ -6,7 +6,7 @@ pub struct KvServer {
     pub rf:       raft::Node,
     me:           usize,
     // snapshot if log grows this big
-    maxraftstate: Option<usize> // Your definitions here.
+    maxraftstate: Option<usize>, // Your definitions here.
 }
 
 impl KvServer {
@@ -14,7 +14,7 @@ impl KvServer {
         servers: Vec<crate::proto::raftpb::RaftClient>,
         me: usize,
         persister: Box<dyn raft::persister::Persister>,
-        maxraftstate: Option<usize>
+        maxraftstate: Option<usize>,
     ) -> KvServer {
         // You may need initialization code here.
 
@@ -84,9 +84,7 @@ impl Node {
 
     pub fn get_state(&self) -> raft::State {
         // Your code here.
-        raft::State {
-            ..Default::default()
-        }
+        raft::State { ..Default::default() }
     }
 }
 

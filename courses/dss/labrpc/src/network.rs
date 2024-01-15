@@ -3,9 +3,9 @@ use std::{
     future::Future,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
-        Arc, Mutex
+        Arc, Mutex,
     },
-    time::Duration
+    time::Duration,
 };
 
 use futures::{
@@ -13,7 +13,7 @@ use futures::{
     executor::ThreadPool,
     future::FutureExt,
     select,
-    stream::StreamExt
+    stream::StreamExt,
 };
 use futures_timer::Delay;
 use log::{debug, error};
@@ -22,7 +22,7 @@ use rand::{thread_rng, Rng};
 use crate::{
     client::{Client, Rpc},
     error::{Error, Result},
-    server::Server
+    server::Server,
 };
 
 #[derive(Debug)]
@@ -30,7 +30,7 @@ struct EndInfo {
     enabled:         bool,
     reliable:        bool,
     long_reordering: bool,
-    server:          Option<Server>
+    server:          Option<Server>,
 }
 
 struct Endpoints {
@@ -39,7 +39,7 @@ struct Endpoints {
     // servers, by name
     servers:     HashMap<String, Option<Server>>,
     // client_name -> server_name
-    connections: HashMap<String, Option<String>>
+    connections: HashMap<String, Option<String>>,
 }
 
 struct NetworkCore {
@@ -52,12 +52,12 @@ struct NetworkCore {
     count:           AtomicUsize,
     sender:          UnboundedSender<Rpc>,
     poller:          ThreadPool,
-    worker:          ThreadPool
+    worker:          ThreadPool,
 }
 
 #[derive(Clone)]
 pub struct Network {
-    core: Arc<NetworkCore>
+    core: Arc<NetworkCore>,
 }
 
 impl Network {
@@ -77,7 +77,7 @@ impl Network {
                 endpoints: Mutex::new(Endpoints {
                     enabled:     HashMap::new(),
                     servers:     HashMap::new(),
-                    connections: HashMap::new()
+                    connections: HashMap::new(),
                 }),
                 count: AtomicUsize::new(0),
                 poller: ThreadPool::builder()
@@ -85,8 +85,8 @@ impl Network {
                     .create()
                     .unwrap(),
                 worker: ThreadPool::new().unwrap(),
-                sender
-            })
+                sender,
+            }),
         };
 
         (net, incoming)
@@ -137,7 +137,7 @@ impl Network {
             name,
             sender,
             worker: self.core.worker.clone(),
-            hooks: Arc::new(Mutex::new(None))
+            hooks: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -209,7 +209,7 @@ impl Network {
                 .core
                 .long_reordering
                 .load(Ordering::Acquire),
-            server
+            server,
         }
     }
 
@@ -237,7 +237,7 @@ impl Network {
             enabled,
             reliable,
             long_reordering,
-            server
+            server,
         } = end_info;
 
         match (enabled, server) {
@@ -275,7 +275,7 @@ impl Network {
                     long_reordering,
                     rpc,
                     network,
-                    server
+                    server,
                 )
                 .await
             },
@@ -299,14 +299,14 @@ impl Network {
                 debug!("{:?} delay {}ms then timeout", rpc, ms);
                 Delay::new(Duration::from_millis(ms)).await;
                 Err(Error::Timeout)
-            }
+            },
         }
     }
 
     /// Spawns a future to run on this net framework.
     pub fn spawn<F>(&self, f: F)
     where
-        F: Future<Output = ()> + Send + 'static
+        F: Future<Output = ()> + Send + 'static,
     {
         self.core.worker.spawn_ok(f);
     }
@@ -314,7 +314,7 @@ impl Network {
     /// Spawns a future to run on this net framework.
     pub fn spawn_poller<F>(&self, f: F)
     where
-        F: Future<Output = ()> + Send + 'static
+        F: Future<Output = ()> + Send + 'static,
     {
         self.core.poller.spawn_ok(f);
     }
@@ -326,7 +326,7 @@ async fn process_rpc(
     long_reordering: Option<u64>,
     mut rpc: Rpc,
     network: Network,
-    server: Server
+    server: Server,
 ) -> Result<Vec<u8>> {
     // Dispatch ===============================================================
     if let Some(delay) = delay {
@@ -399,7 +399,7 @@ async fn server_dead(
     net: Network,
     client_name: &str,
     server_name: &str,
-    server_id: usize
+    server_id: usize,
 ) {
     loop {
         Delay::new(interval).await;
