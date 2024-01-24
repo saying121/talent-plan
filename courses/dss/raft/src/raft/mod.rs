@@ -821,6 +821,13 @@ pub struct Node {
 }
 
 impl Node {
+    pub fn size(&self) -> usize {
+        self.raft
+            .lock()
+            .unwrap()
+            .state()
+            .len()
+    }
     /// Create a new raft service.
     pub fn new(raft: Raft) -> Node {
         // Your code here.

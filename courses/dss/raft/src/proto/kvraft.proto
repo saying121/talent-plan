@@ -2,37 +2,38 @@ syntax = "proto3";
 
 package kvraftpb;
 
-enum Op {
-    Unknown = 0;
-    Put = 1;
-    Append = 2;
-    Get = 3;
+message PutAppendReply {
+    bool is_leader = 1;
+    string err = 2;
+}
+message PutAppendArgs {
+    CommandId command_id = 1;
+    PutAppendCommand command = 2;
 }
 
-/// Put or Append
-message PutAppendRequest {
+message PutAppendCommand {
     string key = 1;
     string value = 2;
-    // "Put" or "Append"
-    Op op = 3;
-    // You'll have to add definitions here.
-    string cid = 4;
-    uint64 seq = 5;
+
+    bool append = 3;
 }
 
-message PutAppendReply {
-    bool wrong_leader = 1;
-    string err = 2;
-    string value = 3;
-}
-
-message GetRequest {
-    string key = 1;
-    // You'll have to add definitions here.
+message CommandId {
+    string clerk_id = 1;
+    uint64 clerk_seq = 2;
 }
 
 message GetReply {
-    bool wrong_leader = 1;
+    bool is_leader = 1;
     string err = 2;
     string value = 3;
+}
+
+message GetArgs {
+    CommandId command_id = 1;
+    GetCommand command = 2;
+}
+
+message GetCommand {
+    string key  = 1;
 }
