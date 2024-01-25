@@ -17,6 +17,7 @@ use futures::{
     stream::{FuturesUnordered, StreamExt},
 };
 use futures_timer::Delay;
+use labrpc::Result as RpcResult;
 
 #[cfg(test)]
 pub mod config;
@@ -37,6 +38,7 @@ fn generate_election_timeout() -> Duration {
 /// As each Raft peer becomes aware that successive log entries are committed,
 /// the peer should send an `ApplyMsg` to the service (or tester) on the same
 /// server, via the `apply_ch` passed to `Raft::new`.
+#[derive(Debug)]
 pub enum ApplyMsg {
     Command {
         data:  Vec<u8>,
@@ -226,7 +228,7 @@ impl Raft {
         let raft_state = persister.raft_state();
 
         // Your initialization code here (2A, 2B, 2C).
-        let mut rf = Raft {
+        let mut rf = Self {
             peers,
             persister,
             me,
@@ -243,7 +245,6 @@ impl Raft {
             last_sign: Instant::now(),
 
             apply_ch,
-            // pool: ThreadPool::clone(&THREAD_POOL),
             weak: Weak::new(),
         };
         if raft_state.is_empty() {
@@ -252,6 +253,9 @@ impl Raft {
 
         // initialize from state persisted before a crash
         rf.restore(&raft_state);
+        if rf.log.offset == 0 {
+            return rf;
+        }
         rf.snapshot(rf.persister.snapshot(), rf.log.first().term, rf.log.offset);
 
         rf
@@ -304,7 +308,7 @@ impl Raft {
             return;
         }
 
-        type Rpc = Pin<Box<dyn Future<Output = labrpc::Result<RequestVoteReply>> + Send>>;
+        type Rpc = Pin<Box<dyn Future<Output = RpcResult<RequestVoteReply>> + Send>>;
         struct Guard {
             inner: FuturesUnordered<Rpc>,
         }
@@ -337,12 +341,9 @@ impl Raft {
                 else {
                     return;
                 };
-                let mut rpc = rpcs
-                    .inner
-                    .select_next_some()
-                    .fuse();
+                let mut rpc = rpcs.inner.select_next_some();
                 let reply = futures::select! {
-                    reply = rpc => Some(reply),
+                    rpy = rpc => Some(rpy),
                     _ = election_timer => None,
                 };
                 if reply.is_none() {
@@ -362,17 +363,16 @@ impl Raft {
                         Err(_) => continue,
                     };
                     assert!(reply.term >= current_term);
-                    if reply.term < current_term {
-                        {
-                            let mut raft = raft.lock().unwrap();
-                            assert!(raft.current_term >= current_term);
-                            let role = Role::Candidate;
-                            if raft.current_term > current_term || raft.role != role {
-                                return;
-                            }
-                            raft.transfer(reply.term, Role::Follower);
+                    if reply.term > current_term {
+                        let mut raft = raft.lock().unwrap();
+                        assert!(raft.current_term >= current_term);
+                        let role = Role::Candidate;
+                        if raft.current_term > current_term || raft.role != role {
                             return;
                         }
+                        raft.transfer(reply.term, Role::Follower);
+
+                        return;
                     }
                     reply
                 };
@@ -383,15 +383,15 @@ impl Raft {
                 if votes < majority {
                     continue;
                 }
-                {
-                    let mut raft = raft.lock().unwrap();
-                    assert!(raft.current_term >= current_term);
-                    let role = Role::Candidate;
-                    if raft.current_term > current_term || raft.role != role {
-                        return;
-                    }
-                    raft.transfer(current_term, Role::Leader);
+
+                let mut raft = raft.lock().unwrap();
+                assert!(raft.current_term >= current_term);
+                let role = Role::Candidate;
+                if raft.current_term > current_term || raft.role != role {
+                    return;
                 }
+                raft.transfer(current_term, Role::Leader);
+
                 return;
             }
         })
@@ -735,7 +735,7 @@ impl Raft {
 
     fn snapshot(&mut self, snapshot: Vec<u8>, term: u64, index: u64) {
         // Your code here (2D).
-        // assert!(index > self.commit_index);
+        assert!(index > self.commit_index);
         _ = self
             .apply_ch
             .unbounded_send(ApplyMsg::Snapshot { data: snapshot, term, index });
@@ -970,13 +970,13 @@ impl RaftService for Node {
     //
     // CAVEATS: Please avoid locking or sleeping here, it may jam the network.
     /// 向其他peer求票
-    async fn request_vote(&self, args: RequestVoteArgs) -> labrpc::Result<RequestVoteReply> {
+    async fn request_vote(&self, args: RequestVoteArgs) -> RpcResult<RequestVoteReply> {
         // Your code here (2A, 2B).
         let mut raft = self.raft.lock().unwrap();
         {
             let reply = RequestVoteReply::new(raft.current_term, false);
             if args.term < raft.current_term {
-                println!("args term < curterm 拒绝投票");
+                // println!("args term < curterm 拒绝投票");
                 return Ok(reply);
             }
             if args.term > raft.current_term {
@@ -1002,10 +1002,7 @@ impl RaftService for Node {
         Ok(RequestVoteReply::new(raft.current_term, true))
     }
     /// 领导调用，复制日志
-    async fn append_entries(
-        &self,
-        mut args: AppendEntriesArgs,
-    ) -> labrpc::Result<AppendEntriesReply> {
+    async fn append_entries(&self, mut args: AppendEntriesArgs) -> RpcResult<AppendEntriesReply> {
         let mut raft = self.raft.lock().unwrap();
         {
             if args.term < raft.current_term {
@@ -1067,10 +1064,7 @@ impl RaftService for Node {
         raft.persist();
         Ok(AppendEntriesReply::new(raft.current_term, true, 0, 0))
     }
-    async fn install_snapshot(
-        &self,
-        args: InstallSnapshotArgs,
-    ) -> labrpc::Result<InstallSnapshotReply> {
+    async fn install_snapshot(&self, args: InstallSnapshotArgs) -> RpcResult<InstallSnapshotReply> {
         let mut raft = self.raft.lock().unwrap();
         {
             let term = args.term;

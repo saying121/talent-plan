@@ -20,11 +20,10 @@ use crate::{
 };
 
 pub struct KvServer {
-    pub rf:       raft::Node,
-    me:           usize,
+    pub rf: raft::Node,
     // snapshot if log grows this big
-    maxraftstate: Option<usize>, // Your definitions here.
-    state:        Option<State>,
+    // maxraftstate: Option<usize>, // Your definitions here.
+    state:  Option<State>,
 
     replyer: Arc<Mutex<HashMap<u64, Replyer>>>,
 }
@@ -92,10 +91,9 @@ impl KvServer {
         let rf = raft::Raft::new(servers, me, persister, tx);
 
         Self {
-            rf: raft::Node::new(rf),
-            me: 0,
-            maxraftstate,
-            state: Some(state),
+            rf:      raft::Node::new(rf),
+            // maxraftstate,
+            state:   Some(state),
             replyer: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -177,8 +175,8 @@ impl KvServer {
                     .expect("KvServer while loop replyer")
                     .remove(&index);
 
-                if raft_state.is_leader
-                    && matches!(&replyer,Some(replyer) if replyer.term == raft_state.term())
+                if raft_state.is_leader()
+                    && matches!(&replyer, Some(replyer) if replyer.term == raft_state.term())
                 {
                     _ = replyer
                         .expect("KvServer raft_state is_leader")
@@ -201,15 +199,6 @@ impl KvServer {
                 raft.snapshot(index, &data);
             }
         })
-    }
-}
-
-impl KvServer {
-    /// Only for suppressing deadcode warnings.
-    #[doc(hidden)]
-    pub fn __suppress_deadcode(&mut self) {
-        let _ = &self.me;
-        let _ = &self.maxraftstate;
     }
 }
 
@@ -262,7 +251,7 @@ impl Node {
 
     /// Whether this peer believes it is the leader.
     pub fn is_leader(&self) -> bool {
-        self.get_state().is_leader()
+        self.server.rf.is_leader()
     }
 
     pub fn get_state(&self) -> raft::State {
@@ -275,7 +264,6 @@ impl Node {
 impl KvService for Node {
     // CAVEATS: Please avoid locking or sleeping here, it may jam the network.
     async fn get(&self, args: GetArgs) -> labrpc::Result<GetReply> {
-        // Your code here.
         let v = {
             let result = self
                 .server
@@ -300,7 +288,7 @@ impl KvService for Node {
                 .insert(index, replyer);
             let reply = futures::select! {
                 reply = reply_rx => reply,
-                _ = Delay::new(Node::REPLY_TIMEOUT).fuse()=>return Err(labrpc::Error::Timeout),
+                _ = Delay::new(Self::REPLY_TIMEOUT).fuse()=>return Err(labrpc::Error::Timeout),
             };
             match reply {
                 Ok(reply) => reply,
@@ -340,7 +328,7 @@ impl KvService for Node {
                 .insert(index, replyer);
             let reply = futures::select! {
                 reply = reply_rx => reply,
-                _ = Delay::new(Node::REPLY_TIMEOUT).fuse()=>return Err(labrpc::Error::Timeout)
+                _ = Delay::new(Self::REPLY_TIMEOUT).fuse() => return Err(labrpc::Error::Timeout)
             };
 
             match reply {

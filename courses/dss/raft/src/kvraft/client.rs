@@ -9,17 +9,6 @@ use futures_timer::Delay;
 
 use crate::{proto::kvraftpb::*, THREAD_POOL};
 
-enum Op {
-    Put {
-        key:   String,
-        value: String,
-    },
-    Append {
-        key:   String,
-        value: String,
-    },
-}
-
 pub struct Clerk {
     pub name:    String,
     pub clients: Vec<KvClient>, // You will have to modify this struct.
@@ -29,11 +18,7 @@ pub struct Clerk {
 }
 
 impl Clerk {
-    fn put_append(&self, op: Op) {
-        let (key, value, append) = match op {
-            Op::Append { key, value } => (key, value, true),
-            Op::Put { key, value } => (key, value, false),
-        };
+    fn put_append(&self, key: String, value: String, append: bool) {
         let args = PutAppendArgs {
             command_id: Some(self.command_id()),
             command:    Some(PutAppendCommand { key, value, append }),
@@ -52,6 +37,7 @@ impl Clerk {
             let (id, client) = clients
                 .next()
                 .expect("Clerk loop put append");
+
             loop {
                 let mut rpc = client.put_append(&args).fuse();
                 let reply = block_on(async {
@@ -100,7 +86,6 @@ impl Clerk {
 
     pub fn new(name: String, clients: Vec<KvClient>) -> Clerk {
         // You'll have to add code here.
-        // Clerk { name, servers }
         Self {
             name,
             clients,
@@ -172,10 +157,10 @@ impl Clerk {
     // }
 
     pub fn put(&self, key: String, value: String) {
-        self.put_append(Op::Put { key, value })
+        self.put_append(key, value, false);
     }
 
     pub fn append(&self, key: String, value: String) {
-        self.put_append(Op::Append { key, value })
+        self.put_append(key, value, true);
     }
 }
